@@ -1,0 +1,2954 @@
+﻿/*
+Copyright (C) 2015 Frank Stinner
+
+This program is free software; you can redistribute it and/or modify it 
+under the terms of the GNU General Public License as published by the 
+Free Software Foundation; either version 3 of the License, or (at your 
+option) any later version. 
+
+This program is distributed in the hope that it will be useful, but 
+WITHOUT ANY WARRANTY; without even the implied warranty of 
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General 
+Public License for more details. 
+
+You should have received a copy of the GNU General Public License along 
+with this program; if not, see <http://www.gnu.org/licenses/>. 
+
+
+Dieses Programm ist freie Software. Sie können es unter den Bedingungen 
+der GNU General Public License, wie von der Free Software Foundation 
+veröffentlicht, weitergeben und/oder modifizieren, entweder gemäß 
+Version 3 der Lizenz oder (nach Ihrer Option) jeder späteren Version. 
+
+Die Veröffentlichung dieses Programms erfolgt in der Hoffnung, daß es 
+Ihnen von Nutzen sein wird, aber OHNE IRGENDEINE GARANTIE, sogar ohne 
+die implizite Garantie der MARKTREIFE oder der VERWENDBARKEIT FÜR EINEN 
+BESTIMMTEN ZWECK. Details finden Sie in der GNU General Public License. 
+
+Sie sollten ein Exemplar der GNU General Public License zusammen mit 
+diesem Programm erhalten haben. Falls nicht, siehe 
+<http://www.gnu.org/licenses/>. 
+*/
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+
+#pragma warning disable 0661,0660
+
+namespace GarminCore.Files {
+
+   /// <summary>
+   /// zum Lesen der RGN-Datei (enthält die geografischen Daten)
+   /// <para>Die "normalen" geografischen Objekte sind in <see cref="SubdivData"/> organisiert (also abhängig vom Zoomlevel), die "erweiterten" Objekte
+   /// in jeweils einer Gesamttabelle. Allerdings sind die Gesamttabellen auch in Bereiche je <see cref="SubdivData"/> gegliedert. Diese Bereiche
+   /// sind in der TRE-Datei definiert.</para>
+   /// </summary>
+   public class StdFile_RGN : StdFile {
+
+      #region Header-Daten
+
+      /// <summary>
+      /// Datenbereich für den <see cref="SubdivData"/>-Inhalt (0x15)
+      /// </summary>
+      public DataBlock SubdivContentBlock { get; private set; }
+
+      // --------- Headerlänge > 29 Byte
+
+      /// <summary>
+      /// Datenbereich für erweiterte Polygone
+      /// </summary>
+      public DataBlock ExtAreasBlock { get; private set; }
+
+      public byte[] Unknown_0x25 = new byte[0x14];
+
+      /// <summary>
+      /// Datenbereich für erweiterte Polylinien
+      /// </summary>
+      public DataBlock ExtLinesBlock { get; private set; }
+
+      public byte[] Unknown_0x41 = new byte[0x14];
+
+      /// <summary>
+      /// Datenbereich für erweiterte Punkte
+      /// </summary>
+      public DataBlock ExtPointsBlock { get; private set; }
+
+      public byte[] Unknown_0x5D = new byte[0x14];
+
+      public DataBlock UnknownBlock_0x71 { get; private set; }
+
+      public byte[] Unknown_0x79 = new byte[4];
+
+
+      #endregion
+
+      enum InternalFileSections {
+         PostHeaderData = 0,
+         SubdivContentBlock,
+         ExtAreasBlock,
+         ExtLinesBlock,
+         ExtPointsBlock,
+         UnknownBlock_0x71,
+      }
+
+      /// <summary>
+      /// enthält die Daten eines Subdivs
+      /// <para>Wegen der 16-Bit-Offsets darf eine Subdiv für Punkte, Indexpunkte und Linien nicht mehr als ushort.MaxValue Byte Umfang erreichen.
+      /// Für die nachfolgenden Polygone dürfte diese Einschränkung aber nicht mehr gelten(?).</para>
+      /// <para>Da die Verweise aus der Indextabelle der RGN-Datei nur einen 1-Byte-Index enthalten, sollte die Summe der Punkte vermutlich nicht größer als 255 sein (?).</para>
+      /// </summary>
+      public class SubdivData : BinaryReaderWriter.DataStruct {
+         /// <summary>
+         /// Liste der Punkte
+         /// </summary>
+         public List<RawPointData> PointList;
+         /// <summary>
+         /// Liste der IndexPunkte (wahrscheinlich nur für "Stadt"-Typen, kleiner 0x12)
+         /// </summary>
+         public List<RawPointData> IdxPointList;
+         /// <summary>
+         /// Liste der Polylines
+         /// </summary>
+         public List<RawPolyData> LineList;
+         /// <summary>
+         /// Liste der Polygone
+         /// </summary>
+         public List<RawPolyData> AreaList;
+
+         // Die Listen für die erweiterten Daten werden hier nur verwaltet. Die Speicherung dieser Daten erfolgt NICHT im Subdiv-Bereich.
+
+         /// <summary>
+         /// Listen der erweiterten Linien (nur zur Datenverwaltung; die Speicherung erfolgt außerhalb der <see cref="SubdivData"/>!)
+         /// </summary>
+         public List<ExtRawPolyData> ExtLineList;
+         /// <summary>
+         /// Listen der erweiterten Flächen (nur zur Datenverwaltung; die Speicherung erfolgt außerhalb der <see cref="SubdivData"/>!)
+         /// </summary>
+         public List<ExtRawPolyData> ExtAreaList;
+         /// <summary>
+         /// Listen der erweiterten Punkte (nur zur Datenverwaltung; die Speicherung erfolgt außerhalb der <see cref="SubdivData"/>!)
+         /// </summary>
+         public List<ExtRawPointData> ExtPointList;
+
+         /// <summary>
+         /// Größe des Speicherbereiches in der RGN-Datei
+         /// </summary>
+         public uint DataLength() {
+            uint len = 0;
+            for (int i = 0; i < PointList.Count; i++)
+               len += PointList[i].DataLength;
+            for (int i = 0; i < IdxPointList.Count; i++)
+               len += IdxPointList[i].DataLength;
+            for (int i = 0; i < LineList.Count; i++)
+               len += LineList[i].DataLength;
+            for (int i = 0; i < AreaList.Count; i++)
+               len += AreaList[i].DataLength;
+
+            if (len > 0) {          // sonst Subdiv ohne Inhalt
+               int typs = 0;
+               if (PointList.Count > 0)
+                  typs++;
+               if (IdxPointList.Count > 0)
+                  typs++;
+               if (LineList.Count > 0)
+                  typs++;
+               if (AreaList.Count > 0)
+                  typs++;
+               len += (uint)((typs - 1) * 2);
+            }
+
+            return len;
+         }
+
+
+         public SubdivData() {
+            PointList = new List<RawPointData>();
+            IdxPointList = new List<RawPointData>();
+            LineList = new List<RawPolyData>();
+            AreaList = new List<RawPolyData>();
+
+            ExtLineList = new List<ExtRawPolyData>();
+            ExtAreaList = new List<ExtRawPolyData>();
+            ExtPointList = new List<ExtRawPointData>();
+         }
+
+         /*
+                  public List<StdFile_TRE.SubdivInfoBasic.SubdivContent> ContentTest(BinaryReaderWriter br, DataBlock block) {
+                     List<StdFile_TRE.SubdivInfoBasic.SubdivContent> cont = new List<StdFile_TRE.SubdivInfoBasic.SubdivContent>();
+
+                     br.Seek(block.Offset);
+                     // max. 3 2-Byte-Pointer
+                     if (block.Length >= 6) {
+                        UInt16 p1 = br.ReadUInt16();
+                        UInt16 p2 = br.ReadUInt16();
+                        UInt16 p3 = br.ReadUInt16();
+
+                        // pot. Pointer dürfen nicht kleiner werden
+                        if (p2 < p1)
+                           p2 = 0;
+                        if (p3 < p2)
+                           p3 = 0;
+
+                        // pot. Pointer dürfen nicht aus dem Block herauszeigen
+                        if (block.Length <= p3)
+                           p3 = 0;
+                        if (block.Length <= p2)
+                           p2 = 0;
+                        if (block.Length <= p1)
+                           p1 = 0;
+
+                        // Liste der denkbaren Inhalte erzeugen
+                        List<StdFile_TRE.SubdivInfoBasic.SubdivContent> test = new List<StdFile_TRE.SubdivInfoBasic.SubdivContent>();
+
+                        if (p3 > 0) {           // 3 Pointer möglich
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
+                        }
+                        if (p2 > 0) {           // 2 Pointer möglich
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines);
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
+                        }
+                        if (p1 > 0) {           // 1 Pointer möglich
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex);
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines);
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines);
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
+                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines |
+                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
+                        }
+                        // 0 Pointer
+                        test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois);
+                        test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex);
+                        test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines);
+                        test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
+
+                        //br.Seek(block.Offset);
+                        //StringBuilder sb = DumpMemory(br.ReadBytes((int)block.Length), 0, -1, 16);
+                        //Debug.WriteLine(sb);
+
+                        foreach (StdFile_TRE.SubdivInfoBasic.SubdivContent content in test) {
+                           try {
+                              br.Seek(block.Offset);
+                              if (TestRead(br, block.Length | ((uint)content << 24)) == 0)
+                                 cont.Add(content);
+                           } catch (Exception ex) {
+
+                              Console.Error.WriteLine(ex.Message);
+
+                           }
+                        }
+                     }
+
+                     return cont;
+                  }
+
+                  int TestRead(BinaryReaderWriter br, object extdata) {
+                     probablyerror = 0;
+                     Read(br, extdata);
+                     return probablyerror;
+                  }
+         */
+
+         int probablyerror = 0;
+
+         public override void Read(BinaryReaderWriter br, object extdata) {
+            UInt32 ext = (UInt32)extdata;
+            StdFile_TRE.SubdivInfoBasic.SubdivContent Content = (StdFile_TRE.SubdivInfoBasic.SubdivContent)(ext >> 24);
+            uint SubdivLength = ext & 0xFFFF;
+
+            PointList.Clear();
+            IdxPointList.Clear();
+            LineList.Clear();
+            AreaList.Clear();
+
+            if (SubdivLength == 0)
+               return;
+
+            if (Content == StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing) {
+               br.Seek(SubdivLength, SeekOrigin.Current);
+               Debug.WriteLine("Unbekannter Subdiv-Inhalt");
+               probablyerror++;
+               return;
+            }
+
+
+            long subdivstart = br.Position;       // Startpunkt für die Offsetberechnung
+
+            // ----- Ermittlung der Offsets für die einzelnen Objektarten -----
+
+            DataBlock data_points = new DataBlock(UInt32.MaxValue, 0);
+            DataBlock data_idxpoints = new DataBlock(UInt32.MaxValue, 0);
+            DataBlock data_polylines = new DataBlock(UInt32.MaxValue, 0);
+            DataBlock data_polygons = new DataBlock(UInt32.MaxValue, 0);
+
+            Queue<StdFile_TRE.SubdivInfoBasic.SubdivContent> offstyp = new Queue<StdFile_TRE.SubdivInfoBasic.SubdivContent>();
+
+            // Anzahl der nötigen Offsets ermitteln (dabei den Offset als Kennung auf 0 setzen)
+            int typs = 0;
+            if ((Content & StdFile_TRE.SubdivInfoBasic.SubdivContent.poi) != 0) {
+               data_points.Offset = 0;
+               offstyp.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.poi);
+               typs++;
+            }
+            if ((Content & StdFile_TRE.SubdivInfoBasic.SubdivContent.idxpoi) != 0) {
+               data_idxpoints.Offset = 0;
+               offstyp.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.idxpoi);
+               typs++;
+            }
+            if ((Content & StdFile_TRE.SubdivInfoBasic.SubdivContent.line) != 0) {
+               data_polylines.Offset = 0;
+               offstyp.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.line);
+               typs++;
+            }
+            if ((Content & StdFile_TRE.SubdivInfoBasic.SubdivContent.area) != 0) {
+               data_polygons.Offset = 0;
+               offstyp.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.area);
+               typs++;
+            }
+
+            // alle Offsets einlesen (für die 1. Objektart existiert niemals ein Offset)
+            // Die Reihenfolge der Objektarten ist festgelegt: points, indexed points, polylines and then polygons.
+            // Für die erste vorhandene Objektart ist kein Offset vorhanden, da sie immer direkt hinter der Offsetliste beginnt.
+            offstyp.Dequeue();
+            while (offstyp.Count > 0) {
+               // Da die Offsets nur als 2-Byte-Zahl gespeichert werden, ist die Größe eines Subdiv auf 65kB begrenzt!
+               UInt16 offset = br.ReadUInt16();
+               switch (offstyp.Dequeue()) {
+                  case StdFile_TRE.SubdivInfoBasic.SubdivContent.poi:
+                     data_points.Offset = offset;
+                     break;
+
+                  case StdFile_TRE.SubdivInfoBasic.SubdivContent.idxpoi:
+                     data_idxpoints.Offset = offset;
+                     break;
+
+                  case StdFile_TRE.SubdivInfoBasic.SubdivContent.line:
+                     data_polylines.Offset = offset;
+                     break;
+
+                  case StdFile_TRE.SubdivInfoBasic.SubdivContent.area:
+                     data_polygons.Offset = offset;
+                     break;
+               }
+            }
+
+            if (typs > 1)
+               // Der Offset, der jetzt noch 0 ist, wird auf den Wert hinter die Offsetliste gesetzt.
+               if (data_points.Offset == 0)
+                  data_points.Offset = (UInt32)((typs - 1) * 2);
+               else if (data_idxpoints.Offset == 0)
+                  data_idxpoints.Offset = (UInt32)((typs - 1) * 2);
+               else if (data_polylines.Offset == 0)
+                  data_polylines.Offset = (UInt32)((typs - 1) * 2);
+               else if (data_polygons.Offset == 0)
+                  data_polygons.Offset = (UInt32)((typs - 1) * 2);
+
+            // Länge der Datenbereiche bestimmen
+            if (data_points.Offset != UInt32.MaxValue) {
+               if (data_idxpoints.Offset != UInt32.MaxValue)
+                  data_points.Length = data_idxpoints.Offset - data_points.Offset;
+               else if (data_polylines.Offset != UInt32.MaxValue)
+                  data_points.Length = data_polylines.Offset - data_points.Offset;
+               else if (data_polygons.Offset != UInt32.MaxValue)
+                  data_points.Length = data_polygons.Offset - data_points.Offset;
+               else
+                  data_points.Length = SubdivLength - data_points.Offset;
+            }
+            if (data_idxpoints.Offset != UInt32.MaxValue) {
+               if (data_polylines.Offset != UInt32.MaxValue)
+                  data_idxpoints.Length = data_polylines.Offset - data_idxpoints.Offset;
+               else if (data_polygons.Offset != UInt32.MaxValue)
+                  data_idxpoints.Length = data_polygons.Offset - data_idxpoints.Offset;
+               else
+                  data_idxpoints.Length = SubdivLength - data_idxpoints.Offset;
+            }
+            if (data_polylines.Offset != UInt32.MaxValue) {
+               if (data_polygons.Offset != UInt32.MaxValue)
+                  data_polylines.Length = data_polygons.Offset - data_polylines.Offset;
+               else
+                  data_polylines.Length = SubdivLength - data_polylines.Offset;
+            }
+            if (data_polygons.Offset != UInt32.MaxValue) {
+               data_polygons.Length = SubdivLength - data_polygons.Offset;
+            }
+
+
+            // Objekte einlesen
+            if (data_points.Offset != UInt32.MaxValue) {
+               if (br.Position != subdivstart + data_points.Offset) {
+                  Debug.WriteLine("Vermutlich Fehler vor dem Einlesen des Point-Bereiches einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + data_points.Offset));
+                  probablyerror++;
+               }
+               br.Seek(subdivstart + data_points.Offset);
+               long endpos = br.Position + data_points.Length;
+               while (br.Position < endpos)
+                  PointList.Add(new RawPointData(br));
+            }
+
+            if (data_idxpoints.Offset != UInt32.MaxValue) {
+               if (br.Position != subdivstart + data_idxpoints.Offset) {
+                  Debug.WriteLine("Vermutlich Fehler vor dem Einlesen des IdxPoint-Bereiches einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + data_idxpoints.Offset));
+                  probablyerror++;
+               }
+               br.Seek(subdivstart + data_idxpoints.Offset);
+               long endpos = br.Position + data_idxpoints.Length;
+               while (br.Position < endpos)
+                  IdxPointList.Add(new RawPointData(br));
+            }
+
+            if (data_polylines.Offset != UInt32.MaxValue) {
+               if (br.Position != subdivstart + data_polylines.Offset) {
+                  Debug.WriteLine("Vermutlich Fehler vor dem Einlesen des Polyline-Bereiches einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + data_polylines.Offset));
+                  probablyerror++;
+               }
+               br.Seek(subdivstart + data_polylines.Offset);
+               long endpos = br.Position + data_polylines.Length;
+               while (br.Position < endpos)
+                  LineList.Add(new RawPolyData(br));
+            }
+
+            if (data_polygons.Offset != UInt32.MaxValue) {
+               if (br.Position != subdivstart + data_polygons.Offset) {
+                  Debug.WriteLine("Vermutlich Fehler vor dem Einlesen des Polygon-Bereiches einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + data_polygons.Offset));
+                  probablyerror++;
+               }
+               br.Seek(subdivstart + data_polygons.Offset);
+               long endpos = br.Position + data_polygons.Length;
+               while (br.Position < endpos)
+                  AreaList.Add(new RawPolyData(br, true));
+            }
+
+            if (br.Position != subdivstart + SubdivLength) {
+               Debug.WriteLine("Vermutlich Fehler beim Einlesen der Datens einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + SubdivLength));
+               probablyerror++;
+            }
+         }
+
+         public override void Write(BinaryReaderWriter bw, object extdata = null) {
+            uint typs = 0;
+            if (PointList.Count > 0)
+               typs++;
+            if (IdxPointList.Count > 0)
+               typs++;
+            if (LineList.Count > 0)
+               typs++;
+            if (AreaList.Count > 0)
+               typs++;
+            if (typs > 1) {      // dann sind Offsetangaben nötig
+               uint[] ListLen = { 0, 0, 0, 0 };
+               for (int i = 0; i < PointList.Count; i++)
+                  ListLen[0] += PointList[i].DataLength;
+               for (int i = 0; i < IdxPointList.Count; i++)
+                  ListLen[1] += IdxPointList[i].DataLength;
+               for (int i = 0; i < LineList.Count; i++)
+                  ListLen[2] += LineList[i].DataLength;
+               for (int i = 0; i < AreaList.Count; i++)
+                  ListLen[3] += AreaList[i].DataLength;
+
+               uint offsets = (typs - 1) * 2;         // Platz für die Offsets einkalkulieren
+
+               bool first = true;
+               for (int i = 0; i < ListLen.Length; i++)
+                  if (ListLen[i] != 0) {
+                     if (!first)
+                        bw.Write((UInt16)offsets);
+                     offsets += ListLen[i];
+                     first = false;
+                  }
+            }
+
+            for (int i = 0; i < PointList.Count; i++)
+               PointList[i].Write(bw);
+            for (int i = 0; i < IdxPointList.Count; i++)
+               IdxPointList[i].Write(bw);
+            for (int i = 0; i < LineList.Count; i++)
+               LineList[i].Write(bw);
+            for (int i = 0; i < AreaList.Count; i++)
+               AreaList[i].Write(bw);
+         }
+
+         /// <summary>
+         /// <see cref="Bound"/> der "rohen" Differenzen zum Mittelpunkt der Subdiv
+         /// </summary>
+         /// <returns>null, wenn keine Punkte x.</returns>
+         protected Bound GetRawBound4Deltas() {
+            List<Bound> rbs = new List<Bound>();
+            rbs.Add(GetRawBoundDelta4PointDataList(PointList));
+            rbs.Add(GetRawBoundDelta4PointDataList(IdxPointList));
+            rbs.Add(GetRawBoundDelta4PolyDataList(LineList));
+            rbs.Add(GetRawBoundDelta4PolyDataList(AreaList));
+            rbs.Add(GetRawBoundDelta4ExtPointDataList(ExtPointList));
+            rbs.Add(GetRawBoundDelta4ExtPolyDataList(ExtLineList));
+            rbs.Add(GetRawBoundDelta4ExtPolyDataList(ExtAreaList));
+
+            Bound rb = null;
+            int idx = -1;
+            for (int i = 0; i < rbs.Count; i++) {
+               if (rbs[i] != null) {
+                  rb = rbs[i];
+                  idx = i;
+                  break;
+               }
+            }
+
+            if (rb != null)
+               for (int i = 0; i < rbs.Count; i++)
+                  if (i != idx && rbs[i] != null)
+                     rb.Embed(rbs[i]);
+
+            return rb;
+         }
+
+         /// <summary>
+         /// <see cref="Bound"/> aller Objekte der Subdiv
+         /// </summary>
+         /// <returns></returns>
+         public Bound GetBound4Deltas(int coordbits, MapUnitPoint subdiv_center) {
+            Bound br = GetRawBound4Deltas();
+            return br != null ? new Bound(Longitude.RawUnits2MapUnits(br.Left, coordbits) + subdiv_center.Longitude,
+                                          Longitude.RawUnits2MapUnits(br.Right, coordbits) + subdiv_center.Longitude,
+                                          Longitude.RawUnits2MapUnits(br.Bottom, coordbits) + subdiv_center.Latitude,
+                                          Longitude.RawUnits2MapUnits(br.Top, coordbits) + subdiv_center.Latitude) :
+                                null;
+         }
+
+
+         protected Bound GetRawBoundDelta4PointDataList(List<RawPointData> lst) {
+            Bound rb = null;
+            if (lst.Count > 0) {
+               rb = new Bound(lst[0].RawDeltaLongitude, lst[0].RawDeltaLatitude);
+               for (int i = 1; i < lst.Count; i++)
+                  rb.Embed(lst[i].RawDeltaLongitude, lst[i].RawDeltaLatitude);
+            }
+            return rb;
+         }
+
+         protected Bound GetRawBoundDelta4ExtPointDataList(List<ExtRawPointData> lst) {
+            Bound rb = null;
+            if (lst.Count > 0) {
+               rb = new Bound(lst[0].RawDeltaLongitude, lst[0].RawDeltaLatitude);
+               for (int i = 1; i < lst.Count; i++)
+                  rb.Embed(lst[i].RawDeltaLongitude, lst[i].RawDeltaLatitude);
+            }
+            return rb;
+         }
+
+         protected Bound GetRawBoundDelta4PolyDataList(List<RawPolyData> lst) {
+            Bound rb = null;
+            if (lst.Count > 0) {
+               rb = new Bound(lst[0].GetRawBoundDelta());
+               for (int i = 1; i < lst.Count; i++)
+                  rb.Embed(lst[i].GetRawBoundDelta());
+            }
+            return rb;
+         }
+
+         protected Bound GetRawBoundDelta4ExtPolyDataList(List<ExtRawPolyData> lst) {
+            Bound rb = null;
+            if (lst.Count > 0) {
+               rb = new Bound(lst[0].GetRawBoundDelta());
+               for (int i = 1; i < lst.Count; i++)
+                  rb.Embed(lst[i].GetRawBoundDelta());
+            }
+            return rb;
+         }
+
+         public override string ToString() {
+            return string.Format("PointList {0}, IdxPointList {1}, LineList {2}, AreaList {3}",
+                                 PointList.Count,
+                                 IdxPointList.Count,
+                                 LineList.Count,
+                                 AreaList.Count);
+         }
+
+      }
+
+      /* Technische Einschränkungen für Objekttypennummern in der RGN-Datei
+       * ==================================================================
+       * ACHTUNG: Objekttypennummern, die die technischen Einschränkungen erfüllen, müssen trotzdem nicht unbedingt vom GPS-Gerät dargestellt werden.
+       * 
+       * Point:      Typ 7 Bit; Subtyp 8 Bit                                                    Typ 0x00..0x7F; Subtyp 0x00..0xFF
+       *             aber Subtyp-Einschränkung in Typefile 5 Bit                                   Subtyp 0x00..0x1F
+       * Polygon:    Typ-Bit 7 zweckentfremdet, deshalb nur 7 Bit; kein Subtyp                  Typ 0x00..0x7F
+       * Polyline:   Typ-Bit 6 für Richtungseinschränkung, deshalb nur 6 Bit; kein Subtyp       Typ 0x00..0x3F
+       * Ext:        Typ 8 Bit; Subtyp-Bit 5 Labelkennung, 
+       *             Subtyp-Bit 7 Extrabytekennung, deshalb nur 5 Bit                           Typ 0x100..0x1FF, Subtyp 0x00..0x1F
+       *             Die führende 1 im Typ symbolisiert den erweiterten Typ. Sie wird
+       *             NICHT gespeichert.
+       */
+
+      #region geografische Objkete
+
+      /// <summary>
+      /// Basisklasse für Punkte, Linien und Polygone
+      /// </summary>
+      abstract public class GraphicObjectData : IComparable {
+
+         protected byte _Type;
+         protected UInt32 _LabelOffset;
+
+         /// <summary>
+         /// Differenz zum Mittelpunkt der zugehörigen Subdiv
+         /// </summary>
+         public Longitude RawDeltaLongitude;
+         /// <summary>
+         /// Differenz zum Mittelpunkt der zugehörigen Subdiv
+         /// </summary>
+         public Latitude RawDeltaLatitude;
+
+         /// <summary>
+         /// theoretisch bis 0x7f für Punkte, bis 0x7f (oder 0x3f?) für Polygone und Linien
+         /// </summary>
+         public int Typ {
+            get {
+               return _Type & 0x7F;
+            }
+            set {
+               _Type = (byte)((_Type & 0x80) | (value & 0x7F));
+            }
+         }
+
+         /// <summary>
+         /// Subtype 0x00..0xFF (nur bei Punkten)
+         /// </summary>
+         public int Subtyp { get { return 0; } }
+
+         /// <summary>
+         /// Offset in der LBL-Datei (3 Byte)
+         /// </summary>
+         public UInt32 LabelOffset {
+            get {
+               return _LabelOffset;
+            }
+            set {
+               _LabelOffset = value & 0xFFFFFF;
+            }
+         }
+
+         /// <summary>
+         /// Größe des Speicherbereiches in der RGN-Datei (Typ, Labeloffset, Lon, Lat)
+         /// </summary>
+         public uint DataLength {
+            get {
+               return 8;
+            }
+         }
+
+         public GraphicObjectData() {
+            _LabelOffset = 0;
+            RawDeltaLongitude = new Longitude(0);
+            RawDeltaLatitude = new Latitude(0);
+         }
+
+         /// <summary>
+         /// Bound der Differenzen zum Mittelpunkt der zugehörigen Subdiv
+         /// </summary>
+         /// <returns></returns>
+         public virtual Bound GetRawBoundDelta() {
+            return new Bound(RawDeltaLongitude, RawDeltaLatitude);
+         }
+
+         /// <summary>
+         /// Hilfsfunktion zum Vergleichen für die Sortierung (über Typ und Subtyp)
+         /// </summary>
+         /// <param name="obj"></param>
+         /// <returns></returns>
+         public int CompareTo(object obj) {
+            if (obj is GraphicObjectData) {
+               GraphicObjectData go = (GraphicObjectData)obj;
+               if (go == null)
+                  return 1;
+               if (Typ == go.Typ) {
+                  if (Subtyp > go.Subtyp)
+                     return 1;
+                  if (Subtyp < go.Subtyp)
+                     return -1;
+                  else
+                     return 0;
+               } else
+                  if (Typ > go.Typ)
+                  return 1;
+               else
+                  return -1;
+            }
+            throw new ArgumentException("Falsche Objektart beim Vergleich.");
+         }
+
+         public override string ToString() {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendFormat("Typ {0:x2}", Typ);
+            if (Subtyp > 0)
+               sb.AppendFormat(", Subtyp {0:x2}", Subtyp);
+            sb.AppendFormat(", LabelOffset {0}", LabelOffset);
+            sb.AppendFormat(", RawDeltaLongitude {0}", RawDeltaLongitude);
+            sb.AppendFormat(", RawDeltaLatitude {0}", RawDeltaLatitude);
+            return sb.ToString();
+         }
+
+      }
+
+      /// <summary>
+      /// für erweiterte Objekte (werden nicht in den Subdiv gespeichert)
+      /// <para>Es können ein Subtyp 0x00..0x1F und zusätzliche Daten ex.</para>
+      /// </summary>
+      abstract public class ExtGraphicObjectData : GraphicObjectData {
+
+         protected byte _Subtype;
+         protected byte[] _ExtraBytes;
+         protected byte[] _UnknownKey;
+         protected byte[] _UnknownBytes;
+
+         /// <summary>
+         /// 8-Bit-Werte
+         /// </summary>
+         public new int Typ {
+            get {
+               return _Type;
+            }
+            set {
+               _Type = (byte)(value & 0xFF);
+            }
+         }
+
+         /// <summary>
+         /// Subtype 0x00..0x1F
+         /// </summary>
+         public new int Subtyp {
+            get {
+               return _Subtype & 0x1f;                         // Bit 0..4 (0..0x1f)
+            }
+            set {
+               if (value > 0)
+                  _Subtype = (byte)(value & 0x1F);
+               else
+                  _Subtype = 0;
+            }
+         }
+
+         /// <summary>
+         /// Offset in der LBL-Datei (3 Byte); ungültig setzen mit UInt32.MaxValue
+         /// </summary>
+         public new UInt32 LabelOffset {
+            get {
+               return HasLabel ?
+                           _LabelOffset & 0x3fffff :  // ?
+                           UInt32.MaxValue;
+            }
+            set {
+               if (value != UInt32.MaxValue) {
+                  _LabelOffset = value & 0xFFFFFF;
+                  HasLabel = true;
+               } else {
+                  _LabelOffset = UInt32.MaxValue;
+                  HasLabel = false;
+               }
+            }
+         }
+
+         /// <summary>
+         /// Ex. ein Label?
+         /// </summary>
+         public bool HasLabel {
+            get {
+               return (_Subtype & 0x20) != 0;
+            }
+            private set {
+               if (value)
+                  _Subtype |= 0x20;
+               else
+                  _Subtype &= unchecked((byte)~0x20);
+            }
+         }
+
+         /// <summary>
+         /// unbekanntes Flag
+         /// </summary>
+         public bool HasUnknownFlag {
+            get {
+               return (_Subtype & 0x40) != 0;
+            }
+            private set {
+               if (value)
+                  _Subtype |= 0x40;
+               else
+                  _Subtype &= unchecked((byte)~0x40);
+            }
+         }
+
+         /// <summary>
+         /// Ex. Extra-Bytes?
+         /// </summary>
+         public bool HasExtraBytes {
+            get {
+               return (_Subtype & 0x80) != 0;
+            }
+            private set {
+               if (value)
+                  _Subtype |= 0x80;
+               else
+                  _Subtype &= unchecked((byte)~0x80);
+            }
+         }
+
+         /// <summary>
+         /// Array der Extra-Bytes (oder null)
+         /// </summary>
+         public byte[] ExtraBytes {
+            get {
+               return HasExtraBytes ? _ExtraBytes : null;
+            }
+            set {
+               if (value != null && value.Length > 0) {
+                  _ExtraBytes = new byte[value.Length];
+                  value.CopyTo(_ExtraBytes, 0);
+                  HasExtraBytes = true;
+               } else {
+                  HasExtraBytes = false;
+                  _ExtraBytes = null;
+               }
+            }
+         }
+
+         /// <summary>
+         /// 3-Byte Key wenn <see cref="HasUnknownFlag"/> gesetzt ist
+         /// </summary>
+         public byte[] UnknownKey {
+            get {
+               return HasUnknownFlag ? _UnknownKey : null;
+            }
+            set {
+               if (value != null && value.Length > 0) {
+                  _UnknownKey = new byte[value.Length];
+                  value.CopyTo(_ExtraBytes, 0);
+                  HasUnknownFlag = true;
+               } else {
+                  HasUnknownFlag = false;
+                  _UnknownKey = null;
+               }
+            }
+         }
+
+         /// <summary>
+         /// zusätzliche Bytes
+         /// </summary>
+         public byte[] UnknownBytes {
+            get {
+               return HasUnknownFlag ? _UnknownBytes : null;
+            }
+            set {
+               if (value != null && value.Length > 0) {
+                  _UnknownBytes = new byte[value.Length];
+                  value.CopyTo(_UnknownBytes, 0);
+                  HasUnknownFlag = true;
+               } else {
+                  HasUnknownFlag = false;
+                  _UnknownBytes = null;
+               }
+            }
+         }
+
+         /// <summary>
+         /// Größe des Speicherbereiches in der RGN-Datei
+         /// </summary>
+         public new uint DataLength {
+            get {
+               return 5 +                                                     // Typ + 2 * Delta
+                      1 +                                                     // Subtyp
+                      (uint)(HasLabel ? 3 : 0) +                              // Label
+                      (uint)(HasExtraBytes ? _ExtraBytes.Length : 0);         // Extrabytes
+            }
+         }
+
+
+         public ExtGraphicObjectData()
+            : base() {
+            _Subtype = 0;
+            _ExtraBytes = null;
+            _UnknownKey = null;
+            _UnknownBytes = null;
+         }
+
+         /// <summary>
+         /// liefert für erweiterte Objekttypen das Array der Extra-Bytes (wenn vorhanden) oder null
+         /// </summary>
+         /// <param name="br"></param>
+         /// <returns></returns>
+         protected byte[] ReadExtraBytes(BinaryReaderWriter br) {
+            if (HasExtraBytes) {
+               // vgl. Funktion encodeExtraBytes() in ExtTypeAttributes.java in MKGMAP
+               /*    Vermutlich wird in Bit 7..5 des ersten Bytes die Anzahl der verwendeten Extrabytes codiert:
+                *       000 -> 1 Byte
+                *       100 -> 2 Bytes
+                *       101 -> 3 Bytes
+                *       111 -> mehr als 3 Bytes, im nächsten Byte steht:
+                * 
+                * original:
+                     extraBytes = new byte[nob + 2];
+                     int i = 0;
+                     extraBytes[i++] = (byte)(0xe0 | flags0);     // -> Bit 5, 6, 7 als Kennung gesetzt, Bit 0..4 Daten
+                     extraBytes[i++] = (byte)((nob << 1) | 1);    // bit0 always set?
+                 
+                *    nob = extraBytes[1] >> 1;
+                *    Arraygröße: nob + 2
+                *    --> Arraygröße = (extraBytes[1] >> 1) + 2;
+                *       z.B. (0x19 >> 1) + 2 = 0x0E;
+                */
+               byte b1 = br.ReadByte();
+               switch (b1 >> 5) {
+                  case 0:           // 1 Byte insgesamt
+                     return new byte[] { (byte)(b1 & 0x1F) };
+
+                  case 0x04:        // 2 Bytes insgesamt
+                     return new byte[] { (byte)(b1 & 0x1F), br.ReadByte() };
+
+                  case 0x05:        // 3 Bytes insgesamt
+                     return new byte[] { (byte)(b1 & 0x1F), br.ReadByte(), br.ReadByte() };
+
+                  case 0x07:        // mehr als 3 Bytes insgesamt
+                     byte b2 = br.ReadByte();
+                     Debug.WriteLineIf((b2 & 0x1) == 0, "Bit 0 bei Länge der Extra-Bytes ist 0.");
+                     byte[] b = new byte[(b2 >> 1) + 2];
+                     b[0] = (byte)(b1 & 0x1F);
+                     b[1] = b2;
+                     for (int i = 2; i < b.Length; i++)
+                        b[i] = br.ReadByte();
+                     return b;
+
+                  default:
+                     throw new Exception("Unbekannte Anzahl Extra-Bytes in erweitertem Objekttyp.");
+               }
+            }
+            return null;
+         }
+
+         /// <summary>
+         /// schreibt bei erweiterten Objekttypen das Array der Extra-Bytes (wenn vorhanden)
+         /// <para>Das Array muss schon die korrekte Länge haben.</para>
+         /// </summary>
+         /// <param name="bw"></param>
+         /// <param name="extrabytes"></param>
+         protected void WriteExtraBytes(BinaryReaderWriter bw) {
+            if (HasExtraBytes &&
+                _ExtraBytes != null &&
+                _ExtraBytes.Length > 0) {
+               _ExtraBytes[0] &= 0x1F;        // Bit, 7,6,5 auf 000 setzen
+               switch (_ExtraBytes.Length) {
+                  case 1:           // Bit, 7,6,5 auf 000 setzen
+                     break;
+
+                  case 2:           // Bit, 7,6,5 auf 100 setzen
+                     _ExtraBytes[0] |= 0x80;
+                     break;
+
+                  case 3:           // Bit, 7,6,5 auf 101 setzen
+                     _ExtraBytes[0] |= 0xA0;
+                     break;
+
+                  default:          // Bit, 7,6,5 auf 111 setzen
+                     _ExtraBytes[0] |= 0xE0;
+                     _ExtraBytes[1] = (byte)(((_ExtraBytes.Length - 2) << 1) & 0x01);
+                     break;
+
+               }
+               bw.Write(_ExtraBytes);
+            }
+         }
+
+
+         public override string ToString() {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendFormat("Typ {0:x2}", Typ);
+            if (Subtyp > 0)
+               sb.AppendFormat(", Subtyp {0:x2}", Subtyp);
+            if (HasLabel)
+               sb.AppendFormat(", LabelOffset {0}", LabelOffset);
+            sb.AppendFormat(", RawDeltaLongitude {0}", RawDeltaLongitude);
+            sb.AppendFormat(", RawDeltaLatitude {0}", RawDeltaLatitude);
+            if (HasExtraBytes)
+               sb.AppendFormat(", Anzahl ExtraBytes {0}", ExtraBytes.Length);
+            return sb.ToString();
+         }
+
+      }
+
+      /// <summary>
+      /// Rohdaten für Punkte 0x00..0x7F, ev. mit Subtype
+      /// </summary>
+      public class RawPointData : GraphicObjectData {
+
+         protected byte _Subtype;
+
+         /// <summary>
+         /// Subtype 0x00..0xFF (0, wenn <see cref="HasSubtype"/> false ist)
+         /// </summary>
+         public new int Subtyp {
+            get {
+               if (HasSubtype)
+                  return _Subtype;
+               else
+                  return 0;
+            }
+            set {
+               if (value > 0)
+                  _Subtype = (byte)(value & 0xFF);
+               else
+                  _Subtype = 0;
+               HasSubtype = value > 0;
+            }
+         }
+         /// <summary>
+         /// Offset in der LBL-Datei (Bit 0..21, d.h. bis 0x3FFFFF möglich)
+         /// </summary>
+         public new UInt32 LabelOffset {
+            get {
+               return _LabelOffset & 0x3FFFFF;
+            }
+            set {
+               _LabelOffset = value & 0x3FFFFF;
+            }
+         }
+         /// <summary>
+         /// es gibt einen Subtyp
+         /// </summary>
+         public bool HasSubtype {
+            get {
+               return (_LabelOffset & 0x800000) != 0;
+            }
+            set {
+               if (value)
+                  _LabelOffset |= 0x800000;
+               else
+                  _LabelOffset &= 0x7FFFFF;
+            }
+         }
+         /// <summary>
+         /// Offset für POI
+         /// </summary>
+         public bool IsPoiOffset {
+            get {
+               return (_LabelOffset & 0x400000) != 0;
+            }
+            set {
+               if (value)
+                  _LabelOffset |= 0x400000;
+               else
+                  _LabelOffset &= 0xBFFFFF;
+            }
+         }
+         /// <summary>
+         /// Größe des Speicherbereiches in der RGN-Datei
+         /// </summary>
+         public new uint DataLength {
+            get {
+               return (uint)(base.DataLength + (HasSubtype ? 1 : 0));
+            }
+         }
+
+
+         public RawPointData()
+            : base() {
+            _Subtype = 0;
+         }
+
+         public RawPointData(BinaryReaderWriter br)
+            : this() {
+            Read(br);
+         }
+
+         public MapUnitPoint GetMapUnitPoint(int coordbits, MapUnitPoint subdiv_center) {
+            return new MapUnitPoint(RawDeltaLongitude, RawDeltaLatitude, coordbits) + subdiv_center;
+         }
+
+         public void Read(BinaryReaderWriter br) {
+            _Type = br.ReadByte();
+            _LabelOffset = br.Read3U();
+            RawDeltaLongitude = br.ReadInt16();
+            RawDeltaLatitude = br.ReadInt16();
+            if (HasSubtype)
+               Subtyp = br.ReadByte();
+         }
+
+         public void Write(BinaryReaderWriter bw) {
+            bw.Write(_Type);
+            bw.Write3(_LabelOffset);
+            bw.Write((Int16)RawDeltaLongitude);
+            bw.Write((Int16)RawDeltaLatitude);
+            if (HasSubtype)
+               bw.Write(_Subtype);
+         }
+
+         public static bool operator ==(RawPointData x, RawPointData y) {
+            if (x._Type == y._Type &&
+                (!x.HasSubtype || (x._Subtype == y._Subtype)) &&
+                x.RawDeltaLongitude == y.RawDeltaLongitude &&
+                x.RawDeltaLatitude == y.RawDeltaLatitude &&
+                x._LabelOffset == y._LabelOffset)
+               return true;
+            return false;
+         }
+
+         public static bool operator !=(RawPointData x, RawPointData y) {
+            return x == y ? false : true;
+         }
+
+         public override string ToString() {
+            return base.ToString() + ", IsPoiOffset " + IsPoiOffset.ToString();
+         }
+
+      }
+
+      /// <summary>
+      /// Typ 0..0x3f für Linien und 0..0x7f für Polygone, Subtyp 0
+      /// </summary>
+      public class RawPolyData : GraphicObjectData {
+
+         /// <summary>
+         /// Daten für Polygon (oder Polylinie)
+         /// </summary>
+         public bool IsPolygon { get; set; }
+
+         /// <summary>
+         /// bis 0x7F für Polygone und 0x3F Linien
+         /// </summary>
+         public new int Typ {
+            get {
+               return _Type & (IsPolygon ? 0x7F : 0x3F);
+            }
+            set {
+               if (IsPolygon)
+                  _Type = (byte)((_Type & 0x80) | (value & 0x7F));
+               else
+                  _Type = (byte)((_Type & 0xC0) | (value & 0x3F));
+            }
+         }
+
+         /// <summary>
+         /// Offset in der LBL-Datei (Bit 0..21)
+         /// </summary>
+         public new UInt32 LabelOffset {
+            get {
+               return _LabelOffset & 0x3FFFFF;
+            }
+            set {
+               _LabelOffset = value & 0x3FFFFF;
+            }
+         }
+
+
+         /// <summary>
+         /// Bits je Koordinate (codiert)
+         /// </summary>
+         byte _bitstreamInfo;
+
+         /// <summary>
+         /// Bitstream der Geodaten
+         /// </summary>
+         byte[] _bitstream;
+
+         /// <summary>
+         /// Längenangabe für den gesamten Datenbereich in 1 oder 2 Byte (wenn der Bitstream länger als 255 Byte ist)
+         /// </summary>
+         bool TwoByteLength {
+            get {
+               return Bit.IsSet(_Type, 7);
+            }
+            set {
+               _Type = (byte)Bit.Set(_Type, 7, value);
+            }
+         }
+
+
+         /// <summary>
+         /// mit Richtungsangabe ? (nur für Polylinien sinnvoll)
+         /// </summary>
+         public bool DirectionIndicator {
+            get {
+               return !IsPolygon && Bit.IsSet(_Type, 6);
+            }
+            set {
+               if (!IsPolygon)
+                  _Type = (byte)Bit.Set(_Type, 6, value);
+            }
+         }
+
+         /// <summary>
+         /// Label-Offset bezieht sich auf LBL oder NET-Datei (dann routable, also nur für Straßen)
+         /// </summary>
+         public bool LabelInNET {
+            get {
+               return Bit.IsSet(_LabelOffset, 23);
+            }
+            set {
+               _LabelOffset = Bit.Set(_LabelOffset, 23, value);
+            }
+         }
+
+         /// <summary>
+         /// wenn true, dann 1 Bit zusätzlich je Punkt (die Straße sollte dann routable sein und Zusatzinfos in NET / NOD enthalten)
+         /// </summary>
+         bool WithExtraBit {
+            get {
+               return Bit.IsSet(_LabelOffset, 22);
+            }
+            set {
+               _LabelOffset = Bit.Set(_LabelOffset, 22, value);
+            }
+         }
+
+         /// <summary>
+         /// Extrabit je Punkt (nur für routable Straßen)
+         /// </summary>
+         public List<bool> ExtraBit { get; protected set; }
+
+         /// <summary>
+         /// Ex. Punkte?
+         /// </summary>
+         public bool WithPoints {
+            get {
+               return _bitstream != null && _bitstream.Length > 0;
+            }
+         }
+
+         /// <summary>
+         /// Größe des Speicherbereiches in der RGN-Datei
+         /// </summary>
+         public new uint DataLength {
+            get {
+               return (uint)(base.DataLength + (TwoByteLength ? 2 : 1) + 1 + (_bitstream != null ? _bitstream.Length : 0));
+            }
+         }
+
+
+         public RawPolyData(bool isPolygon = false)
+            : base() {
+            _bitstreamInfo = 0xFF;
+            IsPolygon = isPolygon;
+            ExtraBit = new List<bool>();
+         }
+
+         /// <summary>
+         /// liest die Daten für Polygon oder Linie ein
+         /// </summary>
+         /// <param name="br"></param>
+         /// <param name="b4Polygon"></param>
+         public RawPolyData(BinaryReaderWriter br, bool isPolygon = false)
+            : this(isPolygon) {
+            Read(br);
+         }
+
+         /// <summary>
+         /// liest die Daten für Polygon oder Linie ein
+         /// </summary>
+         /// <param name="br"></param>
+         public void Read(BinaryReaderWriter br) {
+            _Type = br.ReadByte();
+            _LabelOffset = br.Read3U();
+            RawDeltaLongitude = br.ReadInt16();
+            RawDeltaLatitude = br.ReadInt16();
+            int BitstreamLength = TwoByteLength ? br.ReadUInt16() : br.ReadByte();
+            _bitstreamInfo = br.ReadByte();
+            _bitstream = br.ReadBytes(BitstreamLength);  // _bitstreamInfo zählt nicht mit!
+
+            ExtraBit.Clear();
+
+            /*    einfacher Test
+              
+            if (LabelOffset == 393029 && LongitudeDelta == 10285) //4 && BitstreamLength == 5)
+               Console.WriteLine("");
+            if (br.Position == 0x86af)
+               Console.WriteLine("");
+
+
+            List<GeoData4Polys.RawPoint> pt = null;
+            List<GeoData4Polys.RawPoint> pt2 = null;
+
+            try {
+               pt = GetPoints();
+            } catch (Exception ex) {
+               Console.WriteLine(ex.Message);
+            }
+
+            try {
+               SetPoints(pt);
+            } catch (Exception ex) {
+               Console.WriteLine(ex.Message);
+            }
+
+            try {
+               pt2 = GetPoints();
+            } catch (Exception ex) {
+               Console.WriteLine(ex.Message);
+            }
+
+            if (pt.Count != pt2.Count)
+               Console.WriteLine("ERROR Punktanzahl: " + this.ToString());
+            else
+               for (int i = 0; i < pt.Count; i++)
+                  if (pt[i].Latitude != pt2[i].Latitude ||
+                      pt[i].Longitude != pt2[i].Longitude)
+                     Console.WriteLine("ERROR: " + this.ToString());
+            */
+         }
+
+         /// <summary>
+         /// schreibt die Daten für Polygon oder Linie
+         /// </summary>
+         /// <param name="bw"></param>
+         public void Write(BinaryReaderWriter bw) {
+            bw.Write(_Type);
+            bw.Write3(_LabelOffset);
+            bw.Write((Int16)RawDeltaLongitude);
+            bw.Write((Int16)RawDeltaLatitude);
+            if (TwoByteLength)
+               bw.Write((UInt16)_bitstream.Length);
+            else
+               bw.Write((byte)_bitstream.Length);
+            bw.Write(_bitstreamInfo);
+            bw.Write(_bitstream);
+         }
+
+         /// <summary>
+         /// liefert eine Liste aller Punkte und setzt dabei auch die Liste <see cref="ExtraBit"/> entsprechend der aktuellen Daten in <see cref="_bitstream"/>
+         /// <para><see cref="RawDeltaLongitude"/> und <see cref="RawDeltaLatitude"/> stellen den Startpunkt dar. Die Koordinaten beziehen sich auf den Mittelpunkt der zugehörigen Subdiv.</para>
+         /// </summary>
+         /// <returns></returns>
+         List<GeoDataBitstream.RawPoint> GetRawPoints() {
+            ExtraBit.Clear();
+            GeoDataBitstream geodata = new GeoDataBitstream();
+            return geodata.GetRawPoints(ref _bitstream, _bitstreamInfo & 0x0F, (_bitstreamInfo & 0xF0) >> 4, RawDeltaLongitude, RawDeltaLatitude, WithExtraBit ? ExtraBit : null, false);
+         }
+
+         /// <summary>
+         /// liefert eine Liste aller Punkte und setzt dabei auch die Liste <see cref="ExtraBit"/> entsprechend der aktuellen Daten in <see cref="_bitstream"/>
+         /// </summary>
+         /// <param name="coordbits"></param>
+         /// <param name="subdiv_center"></param>
+         /// <returns></returns>
+         public List<MapUnitPoint> GetMapUnitPoints(int coordbits, MapUnitPoint subdiv_center) {
+            List<MapUnitPoint> lst = new List<MapUnitPoint>();
+            foreach (var item in GetRawPoints())
+               lst.Add(item.GetMapUnitPoint(coordbits, subdiv_center));
+            return lst;
+         }
+
+         /// <summary>
+         /// setzt alle Punkte, gegebenenfalls auch die Liste <see cref="ExtraBit"/>
+         /// </summary>
+         /// <param name="pt">Punkte</param>
+         /// <param name="extra">Liste der Extrabist je Punkt</param>
+         /// <returns></returns>
+         bool SetRawPoints(IList<GeoDataBitstream.RawPoint> pt, IList<bool> extra = null) {
+            ExtraBit.Clear();
+            if (extra != null &&
+                extra.Count == pt.Count)
+               ExtraBit.AddRange(extra);
+            int basebits4lon, basebits4lat;
+            GeoDataBitstream geodata = new GeoDataBitstream();
+            byte[] tmp = geodata.SetRawPoints(pt, out basebits4lon, out basebits4lat, ExtraBit, false);
+            if (tmp != null) {
+               _bitstream = tmp;
+               _bitstreamInfo = (byte)(basebits4lat << 4 | basebits4lon);
+               TwoByteLength = _bitstream.Length > 255;
+               RawDeltaLongitude = (Int16)pt[0].Longitude;
+               RawDeltaLatitude = (Int16)pt[0].Latitude;
+               return true;
+            }
+            Debug.WriteLineIf(tmp == null, string.Format("SetPoints() hat keinen Bitstream erzeugt (für {0} Punkte)", pt.Count));
+            return false;
+         }
+
+         /// <summary>
+         /// setzt alle Punkte, gegebenenfalls auch die Liste <see cref="ExtraBit"/>
+         /// </summary>
+         /// <param name="coordbits"></param>
+         /// <param name="subdiv_center"></param>
+         /// <param name="pt"></param>
+         /// <param name="extra"></param>
+         /// <returns></returns>
+         public bool SetMapUnitPoints(int coordbits, MapUnitPoint subdiv_center, IList<MapUnitPoint> pt, IList<bool> extra = null) {
+            GeoDataBitstream.RawPoint[] ptlst = new GeoDataBitstream.RawPoint[pt.Count];
+            for (int i = 0; i < pt.Count; i++)
+               ptlst[i] = new GeoDataBitstream.RawPoint(pt[i], coordbits, subdiv_center);
+            return SetRawPoints(ptlst, extra);
+         }
+
+         public static bool operator ==(RawPolyData x, RawPolyData y) {
+            if (x._Type == y._Type &&
+                x.RawDeltaLongitude == y.RawDeltaLongitude &&
+                x.RawDeltaLatitude == y.RawDeltaLatitude &&
+                x.WithExtraBit == y.WithExtraBit) {
+
+               List<GeoDataBitstream.RawPoint> px = x.GetRawPoints();
+               List<GeoDataBitstream.RawPoint> py = y.GetRawPoints();
+               if (px.Count != py.Count)
+                  return false;
+               for (int i = 0; i < px.Count; i++)
+                  if (px[i] != py[i])
+                     return false;
+
+               if (x.WithExtraBit) {
+                  if (x.ExtraBit.Count != y.ExtraBit.Count)
+                     return false;
+
+                  for (int i = 0; i < x.ExtraBit.Count; i++)
+                     if (x.ExtraBit[i] != y.ExtraBit[i])
+                        return false;
+               }
+
+               return true;
+            }
+            return false;
+         }
+
+         public static bool operator !=(RawPolyData x, RawPolyData y) {
+            return x == y ? false : true;
+         }
+
+         /// <summary>
+         /// RawBound der Differenzen zum Mittelpunkt der zugehörigen Subdiv
+         /// </summary>
+         /// <returns>null, wenn keine Punkte x.</returns>
+         public override Bound GetRawBoundDelta() {
+            Bound rb = null;
+            List<GeoDataBitstream.RawPoint> pts = GetRawPoints();
+            if (pts.Count > 0) {
+               rb = new Bound(pts[0].Longitude, pts[0].Latitude);
+               for (int i = 1; i < pts.Count; i++)
+                  rb.Embed(pts[i].Longitude, pts[i].Latitude);
+            }
+            return rb;
+         }
+
+         public override string ToString() {
+            return string.Format("Typ {0:x2}, LabelOffset {1}, LabelInNET {2}, RawDeltaLongitude {3}, RawDeltaLatitude {4}, WithExtraBit {5}, Datenbytes {6}",
+                                 Typ,
+                                 LabelOffset,
+                                 LabelInNET,
+                                 RawDeltaLongitude,
+                                 RawDeltaLatitude,
+                                 WithExtraBit,
+                                 _bitstream.Length);
+         }
+
+      }
+
+      /// <summary>
+      /// Daten der erweiterten Punkte, Typ >=0x100, Subtyp 0..0x1f
+      /// </summary>
+      public class ExtRawPointData : ExtGraphicObjectData {
+
+         public ExtRawPointData()
+            : base() { }
+
+         public ExtRawPointData(BinaryReaderWriter br)
+            : base() {
+            Read(br);
+         }
+
+         public void Read(BinaryReaderWriter br) {
+            _Type = br.ReadByte();
+            _Subtype = br.ReadByte();
+
+            RawDeltaLongitude = br.ReadInt16();
+            RawDeltaLatitude = br.ReadInt16();
+
+            if (HasLabel)
+               _LabelOffset = br.Read3U();
+
+            ExtraBytes = ReadExtraBytes(br);
+
+            if (HasUnknownFlag) {
+               _UnknownKey = br.ReadBytes(3);
+
+               if (_UnknownKey[0] == 0x41) {              // 41 xx yy
+
+               } else if (_UnknownKey[0] == 0x03 &&
+                          _UnknownKey[2] == 0x5A) {       // 03 xx 5A
+                  int len = _UnknownKey[1];                    // "mittleres" Byte
+                  len >>= 3;                                   // Anzahl der "Datensätze" zu je 4 Byte
+                  _UnknownBytes = new byte[len * 4];
+                  br.ReadBytes(_UnknownBytes);
+               } else {
+
+                  Debug.WriteLine(string.Format("ExtPointData mit unbekanntem Key: 0x{0:x} 0x{1:x} 0x{2:x}",
+                                                _UnknownKey[0],
+                                                _UnknownKey[1],
+                                                _UnknownKey[2]));
+
+               }
+            }
+         }
+
+         public void Write(BinaryReaderWriter bw) {
+            bw.Write(_Type);
+            bw.Write(_Subtype);
+            bw.Write((Int16)RawDeltaLongitude);
+            bw.Write((Int16)RawDeltaLatitude);
+            if (HasLabel)
+               bw.Write3(_LabelOffset);
+            if (HasExtraBytes)
+               WriteExtraBytes(bw);
+         }
+
+         public MapUnitPoint GetMapUnitPoint(int coordbits, MapUnitPoint subdiv_center) {
+            return new MapUnitPoint(RawDeltaLongitude, RawDeltaLatitude, coordbits) + subdiv_center;
+         }
+
+         public static bool operator ==(ExtRawPointData x, ExtRawPointData y) {
+            if (x._Type == y._Type &&
+                x._Subtype == y._Subtype &&
+                x.RawDeltaLongitude == y.RawDeltaLongitude &&
+                x.RawDeltaLatitude == y.RawDeltaLatitude &&
+                (!x.HasLabel || (x._LabelOffset == y._LabelOffset)))
+               if (!x.HasExtraBytes)
+                  return true;
+               else {
+                  if (x._ExtraBytes.Length != y._ExtraBytes.Length)
+                     return false;
+                  for (int i = 0; i < x._ExtraBytes.Length; i++)
+                     if (x._ExtraBytes[i] != y._ExtraBytes[i])
+                        return false;
+                  return true;
+               }
+            return false;
+         }
+
+         public static bool operator !=(ExtRawPointData x, ExtRawPointData y) {
+            return x == y ? false : true;
+         }
+      }
+
+      /// <summary>
+      /// erweiterte Linien und Polygone, Typ >=0x100, Subtyp 0..0x1f
+      /// </summary>
+      public class ExtRawPolyData : ExtGraphicObjectData {
+
+         byte _bitstreamInfo;
+         byte[] _bitstream;
+
+         /// <summary>
+         /// Ex. Punkte?
+         /// </summary>
+         public bool WithPoints {
+            get {
+               return _bitstream != null && _bitstream.Length > 0;
+            }
+         }
+
+         /// <summary>
+         /// 7-Bit-Werte 0x00..0x7F
+         /// </summary>
+         public new int Typ {
+            get {
+               return _Type & 0x7F;
+            }
+            set {
+               _Type = (byte)(value & 0x7F);
+            }
+         }
+
+         /// <summary>
+         /// Größe des Speicherbereiches in der RGN-Datei
+         /// </summary>
+         public new uint DataLength {
+            get {
+               return (uint)(base.DataLength +
+                             (_bitstream != null ? (_bitstream.Length + 1 < 0x7F ? 1 : 2) : 0) +   // Länge des Bitstreams
+                             1 +                                                                   // Codierung des Bitstreams
+                             (_bitstream != null ? _bitstream.Length : 0));                        // Bitstream
+            }
+         }
+
+
+         public ExtRawPolyData()
+            : base() {
+            _bitstreamInfo = 0;
+            _bitstream = null;
+         }
+
+         public ExtRawPolyData(BinaryReaderWriter br)
+            : this() {
+            Read(br);
+         }
+
+         public void Read(BinaryReaderWriter br) {
+            _Type = br.ReadByte();
+            _Subtype = br.ReadByte();
+
+            RawDeltaLongitude = br.ReadInt16();
+            RawDeltaLatitude = br.ReadInt16();
+
+            /*
+		if (blen >= 0x7f) {
+			stream.write((blen << 2) | 2);               Bit 0 NICHT gesetz, Bit 1 gesetzt, Bit 6, 7 usw. sind verloren gegangen
+			stream.write((blen << 2) >> 8);              ab Bit 6
+		}
+		else {
+			stream.write((blen << 1) | 1);               Bit 0 gesetzt
+		}
+
+		stream.write(bw.getBytes(), 0, blen); 
+             * */
+
+            uint BitstreamLength = br.ReadByte();
+            if ((BitstreamLength & 0x01) != 0)        // Bit 0 Kennung für 1 Byte-Länge
+               BitstreamLength >>= 1;
+            else {                                    // 2-Byte-Länge
+               BitstreamLength >>= 2;
+               BitstreamLength |= (uint)(br.ReadByte() << 6);
+            }
+
+            _bitstreamInfo = br.ReadByte();
+            _bitstream = br.ReadBytes((int)BitstreamLength - 1);     // _bitstreamInfo ist in BitstreamLength eingeschlossen!
+
+            if (HasLabel)
+               _LabelOffset = br.Read3U();
+
+            if (HasUnknownFlag)
+               Debug.WriteLine("ExtPolyData mit unbekanntem Flag");
+
+            ExtraBytes = ReadExtraBytes(br);
+
+            /*    einfacher Test
+              
+            if (LabelOffset == 393029 && LongitudeDelta == 10285) //4 && BitstreamLength == 5)
+               Console.WriteLine("");
+            if (br.Position == 0x86af)
+               Console.WriteLine("");
+
+
+            List<GeoData4Polys.RawPoint> pt = null;
+            List<GeoData4Polys.RawPoint> pt2 = null;
+
+            try {
+               pt = GetPoints();
+            } catch (Exception ex) {
+               Console.WriteLine(ex.Message);
+            }
+
+            try {
+               SetPoints(pt);
+            } catch (Exception ex) {
+               Console.WriteLine(ex.Message);
+            }
+
+            try {
+               pt2 = GetPoints();
+            } catch (Exception ex) {
+               Console.WriteLine(ex.Message);
+            }
+
+            if (pt.Count != pt2.Count)
+               Console.WriteLine("ERROR Punktanzahl: " + this.ToString());
+            else
+               for (int i = 0; i < pt.Count; i++)
+                  if (pt[i].Latitude != pt2[i].Latitude ||
+                      pt[i].Longitude != pt2[i].Longitude)
+                     Console.WriteLine("ERROR: " + this.ToString());
+            */
+
+         }
+
+         public void Write(BinaryReaderWriter bw) {
+            bw.Write(_Type);
+            bw.Write(_Subtype);
+            bw.Write((Int16)RawDeltaLongitude);
+            bw.Write((Int16)RawDeltaLatitude);
+
+            uint bitstreamLength = (uint)(_bitstream.Length + 1);
+            if (bitstreamLength < 0x7F) {
+               bitstreamLength <<= 1;
+               bitstreamLength |= 0x01;         // Bit 0 Kennung für 1 Byte-Länge
+               bw.Write((byte)bitstreamLength);
+            } else {
+               bitstreamLength <<= 2;
+               bw.Write((byte)((bitstreamLength | 0x02) & 0xFF));    // Bit 0 ist 0, Bit 1 ist 1; die Bits 0..5 des Originalwertes werden geschrieben
+               bitstreamLength >>= 8;
+               bw.Write((byte)(bitstreamLength & 0xFF));             // die Bits 6, 7, 8, ... des Originalwertes werden geschrieben
+            }
+
+            bw.Write(_bitstreamInfo);
+            bw.Write(_bitstream);
+
+            if (HasLabel)
+               bw.Write3(_LabelOffset);
+
+            if (HasExtraBytes)
+               WriteExtraBytes(bw);
+         }
+
+         /// <summary>
+         /// liefert eine Liste aller Punkte entsprechend der aktuellen Daten in <see cref="_bitstream"/>
+         /// <para><see cref="LongitudeDelta"/> und <see cref="LatitudeDelta"/> stellen den Startpunkt dar. Die Koordinaten beziehen sich auf den Mittelpunkt der zugehörigen Subdiv.</para>
+         /// </summary>
+         /// <returns></returns>
+         List<GeoDataBitstream.RawPoint> GetRawPoints() {
+            GeoDataBitstream geodata = new GeoDataBitstream();
+            return geodata.GetRawPoints(ref _bitstream, _bitstreamInfo & 0x0F, (_bitstreamInfo & 0xF0) >> 4, RawDeltaLongitude, RawDeltaLatitude, null, true);
+         }
+
+         public List<MapUnitPoint> GetMapUnitPoints(int coordbits, MapUnitPoint subdiv_center) {
+            List<MapUnitPoint> lst = new List<MapUnitPoint>();
+            foreach (var item in GetRawPoints()) {
+               MapUnitPoint pt = new MapUnitPoint(item.Longitude, item.Latitude, coordbits);
+               pt.Add(subdiv_center);
+               lst.Add(pt);
+            }
+            return lst;
+         }
+
+         /// <summary>
+         /// setzt alle Punkte
+         /// <para>Die Daten werden entsprechend <see cref="LongitudeDelta"/> und <see cref="LatitudeDelta"/> intern korrigiert.</para>
+         /// </summary>
+         /// <param name="pt">Punkte</param>
+         /// <returns></returns>
+         bool SetRawPoints(IList<GeoDataBitstream.RawPoint> pt) {
+            int basebits4lon, basebits4lat;
+            GeoDataBitstream geodata = new GeoDataBitstream();
+            byte[] tmp = geodata.SetRawPoints(pt, out basebits4lon, out basebits4lat, null, true);
+            if (tmp != null) {
+               _bitstream = tmp;
+               _bitstreamInfo = (byte)(basebits4lat << 4 | basebits4lon);
+               RawDeltaLongitude = (Int16)pt[0].Longitude;
+               RawDeltaLatitude = (Int16)pt[0].Latitude;
+               return true;
+            }
+            return false;
+         }
+
+         /// <summary>
+         /// setzt alle Punkte, gegebenenfalls auch die Liste <see cref="ExtraBit"/>
+         /// </summary>
+         /// <param name="coordbits"></param>
+         /// <param name="subdiv_center"></param>
+         /// <param name="pt"></param>
+         /// <param name="extra"></param>
+         /// <returns></returns>
+         public bool SetMapUnitPoints(int coordbits, MapUnitPoint subdiv_center, IList<MapUnitPoint> pt) {
+            GeoDataBitstream.RawPoint[] ptlst = new GeoDataBitstream.RawPoint[pt.Count];
+            for (int i = 0; i < pt.Count; i++)
+               ptlst[i] = new GeoDataBitstream.RawPoint(pt[i], coordbits, subdiv_center);
+
+            return SetRawPoints(ptlst);
+         }
+
+         public static bool operator ==(ExtRawPolyData x, ExtRawPolyData y) {
+            if (x._Type == y._Type &&
+                x._Subtype == y._Subtype &&
+                x.RawDeltaLongitude == y.RawDeltaLongitude &&
+                x.RawDeltaLatitude == y.RawDeltaLatitude &&
+                (!x.HasLabel || (x._LabelOffset == y._LabelOffset)))
+               if (!x.HasExtraBytes)
+                  return true;
+               else {
+                  if (x._ExtraBytes.Length != y._ExtraBytes.Length)
+                     return false;
+                  for (int i = 0; i < x._ExtraBytes.Length; i++)
+                     if (x._ExtraBytes[i] != y._ExtraBytes[i])
+                        return false;
+
+                  List<GeoDataBitstream.RawPoint> px = x.GetRawPoints();
+                  List<GeoDataBitstream.RawPoint> py = y.GetRawPoints();
+                  if (px.Count != py.Count)
+                     return false;
+                  for (int i = 0; i < px.Count; i++)
+                     if (px[i] != py[i])
+                        return false;
+
+                  return true;
+               }
+            return false;
+         }
+
+         public static bool operator !=(ExtRawPolyData x, ExtRawPolyData y) {
+            return x == y ? false : true;
+         }
+
+         /// <summary>
+         /// RawBound der Differenzen zum Mittelpunkt der zugehörigen Subdiv
+         /// </summary>
+         /// <returns>null, wenn keine Punkte x.</returns>
+         public override Bound GetRawBoundDelta() {
+            Bound rb = null;
+            List<GeoDataBitstream.RawPoint> pts = GetRawPoints();
+            if (pts.Count > 0) {
+               rb = new Bound(pts[0].Longitude, pts[0].Latitude);
+               for (int i = 1; i < pts.Count; i++)
+                  rb.Embed(pts[i].Longitude, pts[i].Latitude);
+            }
+            return rb;
+         }
+
+         public override string ToString() {
+            return base.ToString() + string.Format(", Länge Bitstream {0}", _bitstream.Length);
+         }
+
+      }
+
+      /// <summary>
+      /// zur De- und Encodierung der geografischen Daten für Polylines und Polygones als Bitstream
+      /// </summary>
+      public class GeoDataBitstream {
+
+         /* Bitstream
+          * 
+          * Folge der Bits 0..7 vom ersten Byte
+          *           Bits 0..7 vom zweiten Byte
+          *           ....
+          */
+
+         /// <summary>
+         /// Punkt in Garmin-Rohdaten (Differenzen zur Subdiv-Mitte und ohne Berücksichtigung einer Bitanzahl)
+         /// </summary>
+         public class RawPoint {
+            /// <summary>
+            /// Länge in RawUnits
+            /// </summary>
+            public int Longitude;
+
+            /// <summary>
+            /// Breite in RawUnits
+            /// </summary>
+            public int Latitude;
+
+
+            public RawPoint(int lon = 0, int lat = 0) {
+               Longitude = lon;
+               Latitude = lat;
+            }
+
+            public RawPoint(RawPoint pt) {
+               Longitude = pt.Longitude;
+               Latitude = pt.Latitude;
+            }
+
+            /// <summary>
+            /// erzeugt einen <see cref="RawPoint"/> aus dem <see cref="MapUnitPoint"/> mit der Bitanzahl und dem Mittelpunkt der Subdiv
+            /// </summary>
+            /// <param name="pt"></param>
+            /// <param name="coordbits"></param>
+            /// <param name="subdiv_center"></param>
+            public RawPoint(MapUnitPoint pt, int coordbits, MapUnitPoint subdiv_center) {
+               MapUnitPoint diff = pt - subdiv_center;
+               Longitude = diff.LongitudeRawUnits(coordbits);
+               Latitude = diff.LatitudeRawUnits(coordbits);
+            }
+
+            /// <summary>
+            /// erzeugt einen <see cref="MapUnitPoint"/> mit der Bitanzahl und dem Mittelpunkt der Subdiv
+            /// </summary>
+            /// <param name="coordbits"></param>
+            /// <param name="subdiv_center"></param>
+            /// <returns></returns>
+            public MapUnitPoint GetMapUnitPoint(int coordbits, MapUnitPoint subdiv_center) {
+               MapUnitPoint p = new MapUnitPoint(Longitude, Latitude, coordbits); // Diff. zum Mittelpunkt der Subdiv
+               p.Longitude += subdiv_center.Longitude;
+               p.Latitude += subdiv_center.Latitude;
+               return p;
+            }
+
+            public override string ToString() {
+               return string.Format("RawLon {0}, RawLat {1}", Longitude, Latitude);
+            }
+         }
+
+         /// <summary>
+         /// Bitstream mit konstantem Vorzeichen für Longitude
+         /// </summary>
+         bool same_lon_sign;
+         /// <summary>
+         /// Vorzeichen bei Bitstream mit konstantem Vorzeichen für Longitude
+         /// </summary>
+         bool same_lon_neg_sign;
+         /// <summary>
+         /// Bitstream mit konstantem Vorzeichen für Latitude
+         /// </summary>
+         bool same_lat_sign;
+         /// <summary>
+         /// Vorzeichen bei Bitstream mit konstantem Vorzeichen für Latitude
+         /// </summary>
+         bool same_lat_neg_sign;
+         /// <summary>
+         /// Start der Daten im Bitstream
+         /// </summary>
+         int bitstreamstart = 0;
+
+
+         /// <summary>
+         /// liest die Vorzeichenbehandlung für den Bitstream ein
+         /// </summary>
+         /// <param name="bitstream"></param>
+         void InitBitstreamControlValues(ref byte[] bitstream) {
+            bitstreamstart = 0;
+            same_lon_sign = BitFromBitArray(bitstreamstart++, ref bitstream);
+            if (same_lon_sign)
+               same_lon_neg_sign = BitFromBitArray(bitstreamstart++, ref bitstream);
+            same_lat_sign = BitFromBitArray(bitstreamstart++, ref bitstream);
+            if (same_lat_sign)
+               same_lat_neg_sign = BitFromBitArray(bitstreamstart++, ref bitstream);
+         }
+
+         /// <summary>
+         /// testet, ob das Bit im Bytearray gesetzt ist
+         /// </summary>
+         /// <param name="bitoffset"></param>
+         /// <param name="bitstream"></param>
+         /// <returns></returns>
+         bool BitFromBitArray(int bitoffset, ref byte[] bitstream) {
+            byte b = bitstream[bitoffset / 8];
+            b >>= bitoffset % 8;
+            return (b & 0x01) != 0;
+         }
+
+         /// <summary>
+         /// setzt das entsprechende Bit auf 1
+         /// </summary>
+         /// <param name="bitoffset"></param>
+         /// <param name="bitstream"></param>
+         void SetBitInBitArray(int bitoffset, ref byte[] bitstream) {
+            bitstream[bitoffset / 8] |= (byte)(0x01 << (bitoffset % 8));
+         }
+
+         /// <summary>
+         /// liefert die Anzahl der nötigen Bits um den Wert zu codieren
+         /// </summary>
+         /// <param name="val"></param>
+         /// <returns></returns>
+         protected int BitsNeeded(uint val) {
+            int bits;
+            for (bits = 24; bits > 0; bits--)
+               if ((val >> bits) != 0)
+                  break;
+            bits++;
+            if (bits < 2)
+               bits = 2;
+            return bits;
+         }
+
+         /// <summary>
+         /// Umrechnung der gespeicherten Bitangabe in die tatsächlich verwendeten Bits
+         /// </summary>
+         /// <param name="basebits"></param>
+         /// <param name="signed"></param>
+         /// <returns></returns>
+         int BaseBits2Bits(int basebits, bool signed) {
+            int bits = 2;
+            if (basebits < 10)
+               // 0->2
+               // 1->3
+               // 2->4
+               // 3->5
+               // 4->6
+               // 5->7
+               // 6->8
+               // 7->9
+               // 8->10
+               // 9->11
+               bits += basebits;
+            else
+               // 10->13
+               // 11->15
+               // 12->17
+               // 13->19
+               // 14->21
+               // 15->23
+               bits += 2 * basebits - 9;
+
+            if (signed)
+               bits++;
+
+            return bits;
+         }
+
+         /// <summary>
+         /// Umrechnung der tatsächlich verwendeten Bits in die gespeicherte Bitangabe
+         /// </summary>
+         /// <param name="bits">min. 2</param>
+         /// <param name="signed"></param>
+         /// <returns></returns>
+         int Bits2BaseBits(int bits, bool signed) {
+            if (signed)
+               bits--;
+
+            if (bits < 12)
+               // 2->0
+               // 3->1
+               // 4->2
+               // 5->3
+               // 6->4
+               // 7->5
+               // 8->6
+               // 9->7
+               // 10->8
+               // 11->9
+               bits -= 2;
+            else
+               // 12->10
+               // 13->10
+               // 14->11
+               // 15->11
+               // 16->12
+               // 17->12
+               // 18->13
+               // 19->13
+               // 20->14
+               // 21->14
+               // 22->15
+               // 23->15
+               bits = bits / 2 + 4;
+
+            return bits;
+         }
+
+         /// <summary>
+         /// setzt das entsprechende Bitmuster und liefert die verwendete Bitanzahl
+         /// </summary>
+         /// <param name="bitoffset"></param>
+         /// <param name="length"></param>
+         /// <param name="signed"></param>
+         /// <param name="value"></param>
+         /// <param name="bitstream"></param>
+         /// <returns></returns>
+         int SetValueToBitArray(int bitoffset, int length, bool signed, int value, ref byte[] bitstream) {
+            if (signed && value < 0) {
+               int sign = 0x01 << (length - 1);       // Maske und pos. Wert (length<32)
+               value += sign;
+               value |= sign;
+            } else
+               if (value < 0)
+               value = -value;
+
+            for (int i = 0; i < length; i++) {
+               if (((value >> i) & 0x01) != 0)        // Bit i gesetzt ?
+                  bitstream[bitoffset / 8] |= (byte)(0x01 << (bitoffset % 8));
+               bitoffset++;
+            }
+            return length;
+         }
+
+         /// <summary>
+         /// liefert den Bitbereich aus dem Bytearray als Zahl
+         /// </summary>
+         /// <param name="bitoffset">Nummer des Startbits im Array 0..</param>
+         /// <param name="length">Anzahl der zusammengehörenden Bits</param>
+         /// <param name="reallength">Anzahl der tatsächlich berücksichtigten Bits (kann größer als <see cref="length"/> sein)</param>
+         /// <param name="const_signed">wenn true, ist das Vorzeichen mit <see cref="const_negativ_sign"/> festgelegt</param>
+         /// <param name="const_negativ_sign">wenn <see cref="const_signed"/> true ist, wird mit true ein negatives Vorzeichen festgelegt</param>
+         /// <param name="bitstream"></param>
+         /// <returns></returns>
+         Int32 GetValueFromBitArray(int bitoffset, int length, out int reallength, bool const_signed, bool const_negativ_sign, ref byte[] bitstream) {
+            reallength = length;
+            int byteoffset = bitoffset / 8;
+            int bitstart = bitoffset % 8;
+
+            int lastbyteoffset = (bitoffset + length - 1) / 8;       // Index des letzten benötigten Bytes
+            if (lastbyteoffset >= bitstream.Length) {
+               reallength *= -1;
+               return 0;
+            }
+
+            ulong tmp;        // 64 Bit
+            if (bitstart + length > 32) {             // betrifft 5 Byte
+               tmp = (ulong)(bitstream[byteoffset] +
+                             (bitstream[byteoffset + 1] << 8) +
+                             (bitstream[byteoffset + 2] << 16) +
+                             (bitstream[byteoffset + 3] << 24) +
+                             (bitstream[byteoffset + 4] << 32));
+            } else if (bitstart + length > 24) {      // betrifft 4 Byte
+               tmp = (ulong)(bitstream[byteoffset] +
+                             (bitstream[byteoffset + 1] << 8) +
+                             (bitstream[byteoffset + 2] << 16) +
+                             (bitstream[byteoffset + 3] << 24));
+            } else if (bitstart + length > 16) {      // betrifft 3 Byte
+               tmp = (ulong)(bitstream[byteoffset] +
+                             (bitstream[byteoffset + 1] << 8) +
+                             (bitstream[byteoffset + 2] << 16));
+            } else if (bitstart + length > 8) {       // betrifft 2 Byte
+               tmp = (ulong)(bitstream[byteoffset] +
+                             (bitstream[byteoffset + 1] << 8));
+            } else {                                  // betrifft 1 Byte
+               tmp = bitstream[byteoffset];
+            }
+            // Bespiel: bitstart=3, length=5 -> Bits 3..7 gesucht
+            //          Bit 8..63 "rausschieben" (63-8+1 = 64-8 = 64-3-5 -> 56)
+            //          Bit 59..63 zurückschieben (3+56 = 3+(64-3-5) = 64-5 -> 59)
+            tmp <<= 64 - bitstart - length;        // höherwertige Bits "rausschieben"
+            tmp >>= 64 - length;                   // auf Startbit zurückschieben
+
+            // tmp enthält jetzt die korrekte Bitfolge
+            if (const_signed) {           // bei konstantem Vorzeichen wird der Wert entsprechend des Vorzeichens geliefert
+               if (const_negativ_sign)
+                  return -(Int32)tmp;
+               else
+                  return (Int32)tmp;
+            }
+
+            // bei variablem Vorzeichen wird das höchstwertigste Bit geprüft
+            if ((tmp >> (length - 1)) != 0) {         // -> negativ
+               ulong tmp2 = (ulong)(0x01 << (length - 1));     // Bitmaske für das höchstwertige Bit
+               tmp &= ~tmp2;                                   // höchstwertiges Bit zurücksetzen
+               if (tmp != 0)
+                  return (Int32)(tmp - tmp2);
+
+               // Spezialfall: nur Vorzeichenbit gesetzt, Wert == 0; (das wäre eigentlich MinValue)
+               //       Wert ist dann zunächst "1 - Wert als unsigned", z.B. für 1000 -> 1 - 8 = -7
+               //       dazu wird der Wert der nächsten Bitfolge normal gelesen und addiert addiert
+               //       -> Verdopplung des Wertebereichs möglich
+               return 1 - (Int32)tmp2 + GetValueFromBitArray(bitoffset + length, length, out reallength, false, false, ref bitstream);
+            }
+
+            return (Int32)tmp;      // variables Vorzeichen, aber positiv
+         }
+
+
+         /// <summary>
+         /// erzeugt die Liste der Punkte (in den "rohen" Werten) aus dem aktuell gespeicherten Byte-Array
+         /// <para>Es muß noch der Mittelpunkt des Subdivs und die Bitverschiebung berücksichtigt werden.</para>
+         /// </summary>
+         /// <param name="bitstream">Byte-Array</param>
+         /// <param name="basebits4lon">Bit je Longitude (in codierter Form; Basebits)</param>
+         /// <param name="basebits4lat">Bit je Latitude (in codierter Form; Basebits)</param>
+         /// <param name="start_lon">Longitude für den Startpunkt</param>
+         /// <param name="start_lat">Latitude für den Startpunkt</param>
+         /// <param name="extrabit">Liste die die Extrabits aufnimmt (oder null)</param>
+         /// <param name="extendedtype">true wenn es sich um Daten für einen extended Typ handelt</param>
+         /// <returns></returns>
+         public List<RawPoint> GetRawPoints(ref byte[] bitstream, int basebits4lon, int basebits4lat, int start_lon, int start_lat, List<bool> extrabit, bool extendedtype) {
+            List<RawPoint> rawpoints = new List<RawPoint>();
+
+            if (bitstream != null && bitstream.Length > 0) {
+               InitBitstreamControlValues(ref bitstream);
+
+               if (extendedtype)
+                  BitFromBitArray(bitstreamstart++, ref bitstream);        // unklar; immer 0?
+
+               if (extrabit != null)
+                  extrabit.Add(BitFromBitArray(bitstreamstart++, ref bitstream));
+
+               int bitstreamoffset = bitstreamstart;
+               int bits = 8 * bitstream.Length;
+               int bits4Longitude = BaseBits2Bits(basebits4lon, !same_lon_sign);
+               int bits4Latitude = BaseBits2Bits(basebits4lat, !same_lat_sign);
+               int reallength;
+               int bits4point = bits4Longitude + bits4Latitude + (extrabit != null ? 1 : 0);
+
+               // The starting point of the polyline and polygon are defined by longitude_delta and latitude_delta.
+               rawpoints.Add(new RawPoint(start_lon, start_lat));
+
+               while (bitstreamoffset + bits4point <= bits) {
+                  int lon = GetValueFromBitArray(bitstreamoffset, bits4Longitude, out reallength, same_lon_sign, same_lon_neg_sign, ref bitstream);
+                  bitstreamoffset += reallength;
+                  if (reallength <= 0) {
+                     bitstreamoffset += 2 * reallength;
+                     Debug.WriteLine("Längenüberschreitung bei bitstreamoffset={0} für Lon: {1}",
+                                     bitstreamoffset,
+                                     GetBitStreamString(ref bitstream, basebits4lon, basebits4lat, extrabit != null));
+                     break;
+                  }
+
+                  int lat = GetValueFromBitArray(bitstreamoffset, bits4Latitude, out reallength, same_lat_sign, same_lat_neg_sign, ref bitstream);
+                  bitstreamoffset += reallength;
+                  if (reallength <= 0) {
+                     bitstreamoffset += 2 * reallength;
+                     Debug.WriteLine("Längenüberschreitung bei bitstreamoffset={0} für Lat: {1}",
+                                     bitstreamoffset,
+                                     GetBitStreamString(ref bitstream, basebits4lon, basebits4lat, extrabit != null));
+                     break;
+                  }
+
+                  if (extrabit != null)
+                     extrabit.Add(BitFromBitArray(bitstreamoffset++, ref bitstream));
+
+                  // Each point in a poly object is defined relative to the previous point.
+                  rawpoints.Add(new RawPoint(rawpoints[rawpoints.Count - 1].Longitude + lon, rawpoints[rawpoints.Count - 1].Latitude + lat));
+               }
+#if DEBUG
+               // restliche Bits prüfen; sollten 0 sein
+               bool err = false;
+               while (bitstreamoffset < bits)
+                  if (BitFromBitArray(bitstreamoffset++, ref bitstream)) {
+                     err = true;
+                     break;
+                  }
+               if (err)
+                  Debug.WriteLine("vermutlich Fehler bei den \"Restbits\": " + GetBitStreamString(ref bitstream, basebits4lon, basebits4lat, extrabit != null));
+#endif
+            }
+
+            return rawpoints;
+         }
+
+         /// <summary>
+         /// setzt die "rohen" Punkte (Werte bezüglich des Mittelpunktes des Subdivs und mit korrekter Bitverschiebung) im Byte-Array
+         /// </summary>
+         /// <param name="pt">Punkte</param>
+         /// <param name="bits4lon">nimmt die Anzahl der verwendeten Bits je Longitude auf (in codierter Form; Basebits)</param>
+         /// <param name="bits4lat">nimmt die Anzahl der verwendeten Bits je Latitude auf (in codierter Form; Basebits)</param>
+         /// <param name="extra">Extrabits je Punkt oder null</param>
+         /// <param name="extendedtype">true wenn es sich um Daten für einen extended Typ handelt</param>
+         /// <returns></returns>
+         public byte[] SetRawPoints(IList<RawPoint> pt, out int basebits4lon, out int basebits4lat, IList<bool> extra, bool extendedtype) {
+            basebits4lon = basebits4lat = 0;
+
+            if (pt[0].Longitude < -65536 || 65535 < pt[0].Longitude)    // nur UInt16 möglich
+               return null;
+            if (pt[0].Latitude < -65536 || 65535 < pt[0].Latitude)     // nur UInt16 möglich
+               return null;
+            if (pt.Count < 2)
+               return null;
+
+            // Vorzeichenwechsel testen und Min/Max ermitteln
+            bool lon_delta_pos = false;         // > 0
+            bool lon_delta_neg = false;         // < 0
+            bool lat_delta_pos = false;         // > 0
+            bool lat_delta_neg = false;         // < 0
+            int minlon = int.MaxValue;
+            int maxlon = int.MinValue;
+            int minlat = int.MaxValue;
+            int maxlat = int.MinValue;
+
+            List<RawPoint> delta = new List<RawPoint>();
+            for (int i = 1; i < pt.Count; i++) {
+               int lon_delta = pt[i].Longitude - pt[i - 1].Longitude;
+               int lat_delta = pt[i].Latitude - pt[i - 1].Latitude;
+
+               if (lon_delta > 0)
+                  lon_delta_pos = true;
+               else if (lon_delta < 0)
+                  lon_delta_neg = true;
+
+               if (lat_delta > 0)
+                  lat_delta_pos = true;
+               else if (lat_delta < 0)
+                  lat_delta_neg = true;
+
+               minlon = Math.Min(minlon, lon_delta);
+               maxlon = Math.Max(maxlon, lon_delta);
+               minlat = Math.Min(minlat, lat_delta);
+               maxlat = Math.Max(maxlat, lat_delta);
+
+               delta.Add(new RawPoint(lon_delta, lat_delta));        // Diff. speichern
+            }
+
+            same_lon_sign = true;
+            same_lon_neg_sign = false;
+            if (lon_delta_pos && lon_delta_neg)
+               same_lon_sign = false;
+            else if (!lon_delta_pos && lon_delta_neg)
+               same_lon_neg_sign = true;
+
+            same_lat_sign = true;
+            same_lat_neg_sign = false;
+            if (lat_delta_pos && lat_delta_neg)
+               same_lat_sign = false;
+            else if (!lat_delta_pos && lat_delta_neg)
+               same_lat_neg_sign = true;
+
+            // nötige Bitanzahl bestimmen
+            int bits4lon = Math.Max(BitsNeeded((uint)Math.Abs(maxlon)),
+                                    BitsNeeded((uint)Math.Abs(minlon)));
+            int bits4lat = Math.Max(BitsNeeded((uint)Math.Abs(maxlat)),
+                                    BitsNeeded((uint)Math.Abs(minlat)));
+
+            if (!same_lon_sign)
+               bits4lon++;       // wegen Vorzeichen
+            if (!same_lat_sign)
+               bits4lat++;
+
+            // Bit-Anzahl ev. regelkonform machen
+            bits4lon = BaseBits2Bits(Bits2BaseBits(bits4lon, !same_lon_sign), !same_lon_sign);
+            bits4lat = BaseBits2Bits(Bits2BaseBits(bits4lat, !same_lat_sign), !same_lat_sign);
+
+            bool bWithExtraBit = extra != null && extra.Count == pt.Count;
+
+            // neuen Byte-Puffer erzeugen
+            int bits4point = bits4lon + bits4lat + (bWithExtraBit ? 1 : 0);
+            int extbits = 2;
+            if (same_lon_sign)
+               extbits++;
+            if (same_lat_sign)
+               extbits++;
+            if (extendedtype)
+               extbits++;
+            if (bWithExtraBit)
+               extbits++;
+
+            // Da aus der Puffergröße und den Bits je Punkt auch die Punktanzahl bestimmt wird, müssen die ungenutzten restlichen Bits
+            // weniger sein als für einen Punkt benötigt werden. Andernfalls muss die Bitanzahl je Punkt willkürlich erhöht werden.
+            int bitstreamlen = extbits + bits4point * delta.Count;
+            int bytes4buffer = bitstreamlen / 8 + (bitstreamlen % 8 > 0 ? 1 : 0);
+            bool bLonIncrement = true;
+            while (bits4point * (1 + delta.Count) <= (8 * bytes4buffer - extbits)) {
+               bits4point++;
+               // abwechselnd Lon und Lat erhöhen
+               if (bLonIncrement) {
+                  bits4lon++;
+                  // Bit-Anzahl ev. regelkonform machen
+                  bits4lon = BaseBits2Bits(Bits2BaseBits(bits4lon, !same_lon_sign), !same_lon_sign);
+               } else {
+                  bits4lat++;
+                  // Bit-Anzahl ev. regelkonform machen
+                  bits4lat = BaseBits2Bits(Bits2BaseBits(bits4lat, !same_lat_sign), !same_lat_sign);
+               }
+               bLonIncrement = !bLonIncrement;
+               bitstreamlen += delta.Count;
+               bytes4buffer = bitstreamlen / 8 + (bitstreamlen % 8 > 0 ? 1 : 0);
+            }
+
+            byte[] bitstream = new byte[bytes4buffer];
+
+            int bitstreampos = 0;
+            // Vorzeichenregeln speichern
+            if (same_lon_sign) {
+               SetBitInBitArray(bitstreampos++, ref bitstream);
+               if (same_lon_neg_sign)
+                  SetBitInBitArray(bitstreampos, ref bitstream);
+               bitstreampos++;
+            } else
+               bitstreampos++;
+            if (same_lat_sign) {
+               SetBitInBitArray(bitstreampos++, ref bitstream);
+               if (same_lat_neg_sign)
+                  SetBitInBitArray(bitstreampos, ref bitstream);
+               bitstreampos++;
+            } else
+               bitstreampos++;
+
+            if (extendedtype)
+               bitstreampos++;
+
+            if (bWithExtraBit) {
+               if (extra[0])
+                  SetBitInBitArray(bitstreampos, ref bitstream);
+               bitstreampos++;
+            }
+
+            // Werte speichern
+            for (int i = 0; i < delta.Count; i++) {
+               bitstreampos += SetValueToBitArray(bitstreampos, bits4lon, !same_lon_sign, delta[i].Longitude, ref bitstream);
+               bitstreampos += SetValueToBitArray(bitstreampos, bits4lat, !same_lat_sign, delta[i].Latitude, ref bitstream);
+               if (bWithExtraBit)
+                  if (extra[i + 1])
+                     SetBitInBitArray(bitstreampos++, ref bitstream);
+                  else
+                     bitstreampos++;
+            }
+
+            basebits4lon = Bits2BaseBits(bits4lon, !same_lon_sign);
+            basebits4lat = Bits2BaseBits(bits4lat, !same_lat_sign);
+
+            //TwoByteLength = bitstream.Length > 255;
+            return bitstream;
+         }
+
+         /// <summary>
+         /// nur für Analysezwecke: Umwandlung des Bitstreams in eine Zeichenkette
+         /// </summary>
+         /// <param name="bitstream"></param>
+         /// <param name="basebits4lon"></param>
+         /// <param name="basebits4lat"></param>
+         /// <param name="extrabit"></param>
+         /// <returns></returns>
+         public string GetBitStreamString(ref byte[] bitstream, int basebits4lon, int basebits4lat, bool extrabit = false) {
+            StringBuilder sb = new StringBuilder();
+
+            if (bitstream != null && bitstream.Length > 0) {
+               for (int i = 0; i < bitstream.Length; i++) {
+                  sb.Append((bitstream[i] & 0x01) > 0 ? "1" : "0");
+                  sb.Append((bitstream[i] & 0x02) > 0 ? "1" : "0");
+                  sb.Append((bitstream[i] & 0x04) > 0 ? "1" : "0");
+                  sb.Append((bitstream[i] & 0x08) > 0 ? "1" : "0");
+                  sb.Append((bitstream[i] & 0x10) > 0 ? "1" : "0");
+                  sb.Append((bitstream[i] & 0x20) > 0 ? "1" : "0");
+                  sb.Append((bitstream[i] & 0x40) > 0 ? "1" : "0");
+                  sb.Append((bitstream[i] & 0x80) > 0 ? "1" : "0");
+               }
+
+               InitBitstreamControlValues(ref bitstream);
+
+               int insertpos = bitstreamstart;
+               sb.Insert(insertpos++, ":");
+
+               if (extrabit) {
+                  sb.Insert(insertpos++, "[");
+                  insertpos++;
+                  sb.Insert(insertpos++, "]");
+               }
+
+               int bits4Longitude = BaseBits2Bits(basebits4lon, !same_lon_sign);
+               int bits4Latitude = BaseBits2Bits(basebits4lat, !same_lat_sign);
+
+               while (insertpos < sb.Length) {
+                  insertpos += bits4Longitude;
+                  if (insertpos < sb.Length)
+                     sb.Insert(insertpos++, " ");
+                  insertpos += bits4Latitude;
+                  if (extrabit) {
+                     if (insertpos < sb.Length)
+                        sb.Insert(insertpos++, "[");
+                     insertpos++;
+                     if (insertpos < sb.Length)
+                        sb.Insert(insertpos++, "]");
+                  }
+                  if (insertpos < sb.Length)
+                     sb.Insert(insertpos++, ",");
+               }
+
+               sb.Insert(0,
+                         string.Format("Bits Lon {0}->{1} Lat {2}->{3}, Vorzeichen {4}{5}, ",
+                                        basebits4lon,
+                                        bits4Longitude,
+                                        basebits4lat,
+                                        bits4Latitude,
+                                        same_lon_sign ? (same_lon_neg_sign ? "-" : "+") : "*",
+                                        same_lat_sign ? (same_lat_neg_sign ? "-" : "+") : "*"));
+            }
+            return sb.ToString();
+         }
+
+         public override string ToString() {
+            return string.Format("same_lon_sign {0}, same_lon_neg_sign {1}, same_lat_sign {2}, same_lat_neg_sign {3}", same_lon_sign, same_lon_neg_sign, same_lat_sign, same_lat_neg_sign);
+         }
+
+      }
+
+      #endregion
+
+
+      /// <summary>
+      /// übergeordnete TRE-Datei
+      /// </summary>
+      public StdFile_TRE TREFile { get; private set; }
+
+      /// <summary>
+      /// Liste aller Subdivs mit ihren Daten
+      /// </summary>
+      public List<SubdivData> SubdivList { get; private set; }
+
+
+      public StdFile_RGN(StdFile_TRE tre)
+         : base("RGN") {
+         Headerlength = 0x7D;
+
+         TREFile = tre;
+         SubdivList = new List<SubdivData>();
+      }
+
+      public override void ReadHeader(BinaryReaderWriter br) {
+         base.ReadCommonHeader(br, Typ);
+
+         Filesections.ClearSections();
+
+         SubdivContentBlock = new DataBlock(br);
+
+         // --------- Headerlänge > 29 Byte
+
+         if (Headerlength > 0x1D) {
+            ExtAreasBlock = new DataBlock(br);
+            br.ReadBytes(Unknown_0x25);
+            ExtLinesBlock = new DataBlock(br);
+            br.ReadBytes(Unknown_0x41);
+            ExtPointsBlock = new DataBlock(br);
+            br.ReadBytes(Unknown_0x5D);
+            UnknownBlock_0x71 = new DataBlock(br);
+            br.ReadBytes(Unknown_0x79);
+
+         }
+      }
+
+      protected override void ReadSections(BinaryReaderWriter br) {
+         // --------- Dateiabschnitte für die Rohdaten bilden ---------
+         Filesections.AddSection((int)InternalFileSections.SubdivContentBlock, new DataBlock(SubdivContentBlock));
+         Filesections.AddSection((int)InternalFileSections.ExtAreasBlock, new DataBlock(ExtAreasBlock));
+         Filesections.AddSection((int)InternalFileSections.ExtLinesBlock, new DataBlock(ExtLinesBlock));
+         Filesections.AddSection((int)InternalFileSections.ExtPointsBlock, new DataBlock(ExtPointsBlock));
+         Filesections.AddSection((int)InternalFileSections.UnknownBlock_0x71, new DataBlock(UnknownBlock_0x71));
+         if (GapOffset > HeaderOffset + Headerlength) // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
+            Filesections.AddSection((int)InternalFileSections.PostHeaderData, HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+
+         // Datenblöcke einlesen
+         Filesections.ReadSections(br);
+
+         SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
+      }
+
+      protected override void DecodeSections() {
+         SubdivList.Clear();
+
+         if (Locked != 0) {
+            RawRead = true;
+            return;
+         }
+
+         // Datenblöcke "interpretieren"
+         int filesectiontype;
+         DataBlockWithRecordsize tmpblrs;
+
+         if (TREFile == null)
+            throw new Exception("Ohne dazugehörende TRE-Datei können keine Subdiv-Infos gelesen werden.");
+
+         // alle Subdiv-Daten "interpretieren"
+         List<StdFile_TRE.SubdivInfoBasic> subdivinfoList = TREFile.SubdivInfoList;
+         if (subdivinfoList != null &&
+             subdivinfoList.Count > 0) {
+
+            filesectiontype = (int)InternalFileSections.SubdivContentBlock;
+
+            // Die Offsets für den zugehörigen Datenbereich für jedes Subdiv sind zwar schon gesetzt, aber die Länge der entsprechenden Blöcke fehlt noch.
+            // Die letzte Subdiv nimmt den Rest des gesamten Datenblocks ein.
+            //for (int i = 0; i < subdivinfoList.Count - 1; i++)
+            //   subdivinfoList[i].Data.Length = subdivinfoList[i + 1].Data.Offset - subdivinfoList[i].Data.Offset;
+            //subdivinfoList[subdivinfoList.Count - 1].Data.Length = Filesections.GetLength(filesectiontype) - subdivinfoList[subdivinfoList.Count - 1].Data.Offset;
+
+            tmpblrs = Filesections.GetPosition(filesectiontype);
+            if (tmpblrs != null && tmpblrs.Length > 0) {
+               tmpblrs = new DataBlockWithRecordsize(tmpblrs);
+               tmpblrs.Offset = 0;
+               Decode_SubdivContentBlock(Filesections.GetSectionDataReader(filesectiontype), tmpblrs);
+               Filesections.RemoveSection(filesectiontype);
+            }
+         } else
+            subdivinfoList = new List<StdFile_TRE.SubdivInfoBasic>();
+         // throw new Exception("Die TRE-Datei enthält keine Subdiv-Infos.");
+
+         // alle Ext-Daten "interpretieren"
+         filesectiontype = (int)InternalFileSections.ExtAreasBlock;
+         if (Filesections.GetLength(filesectiontype) > 0) {
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
+            bl.Offset = 0;
+            Decode_ExtAreasBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
+            Filesections.RemoveSection(filesectiontype);
+         }
+
+         filesectiontype = (int)InternalFileSections.ExtLinesBlock;
+         if (Filesections.GetLength(filesectiontype) > 0) {
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
+            bl.Offset = 0;
+            Decode_ExtLinesBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
+            Filesections.RemoveSection(filesectiontype);
+         }
+
+         filesectiontype = (int)InternalFileSections.ExtPointsBlock;
+         if (Filesections.GetLength(filesectiontype) > 0) {
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
+            bl.Offset = 0;
+            Decode_ExtPointsBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
+            Filesections.RemoveSection(filesectiontype);
+         }
+
+      }
+
+      public override void Encode_Sections() {
+         SetData2Filesection((int)InternalFileSections.SubdivContentBlock, true);
+         if (Headerlength > 0x1D) {    // erweiterten Objekte in der RGN-Datei speichern
+            SetData2Filesection((int)InternalFileSections.ExtAreasBlock, true);
+            SetData2Filesection((int)InternalFileSections.ExtLinesBlock, true);
+            SetData2Filesection((int)InternalFileSections.ExtPointsBlock, true);
+         }
+      }
+
+      protected override void Encode_Filesection(BinaryReaderWriter bw, int filesectiontype) {
+         switch ((InternalFileSections)filesectiontype) {
+            case InternalFileSections.SubdivContentBlock:
+               Encode_SubdivContentBlock(bw);
+               break;
+
+            case InternalFileSections.ExtAreasBlock:
+               Encode_ExtAreasBlock(bw);
+               break;
+
+            case InternalFileSections.ExtLinesBlock:
+               Encode_ExtLinesBlock(bw);
+               break;
+
+            case InternalFileSections.ExtPointsBlock:
+               Encode_ExtPointsBlock(bw);
+               break;
+
+            case InternalFileSections.UnknownBlock_0x71:
+
+               break;
+         }
+      }
+
+      public override void SetSectionsAlign() {
+         // durch Pseudo-Offsets die Reihenfolge der Abschnitte festlegen
+         uint pos = 0;
+         Filesections.SetOffset((int)InternalFileSections.PostHeaderData, pos++);
+         Filesections.SetOffset((int)InternalFileSections.SubdivContentBlock, pos++);
+         if (Headerlength > 0x1D) {
+            Filesections.SetOffset((int)InternalFileSections.ExtAreasBlock, pos++);
+            Filesections.SetOffset((int)InternalFileSections.ExtLinesBlock, pos++);
+            Filesections.SetOffset((int)InternalFileSections.ExtPointsBlock, pos++);
+            Filesections.SetOffset((int)InternalFileSections.UnknownBlock_0x71, pos++);
+         }
+
+         Filesections.AdjustSections(DataOffset);     // lückenlos ausrichten
+
+         SubdivContentBlock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.SubdivContentBlock));
+         ExtAreasBlock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.ExtAreasBlock));
+         ExtLinesBlock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.ExtLinesBlock));
+         ExtPointsBlock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.ExtPointsBlock));
+         UnknownBlock_0x71 = new DataBlock(Filesections.GetPosition((int)InternalFileSections.UnknownBlock_0x71));
+      }
+
+      #region Decodierung der Datenblöcke
+
+      void Decode_SubdivContentBlock(BinaryReaderWriter br, DataBlock src) { //, bool selftest = false) {
+         if (br != null) {
+            List<StdFile_TRE.SubdivInfoBasic> subdivinfoList = TREFile.SubdivInfoList;
+            // Länge und Inhalt als Zusatzdaten liefern
+            object[] extdata = new object[subdivinfoList.Count];
+            //uint start = 0;
+            for (int i = 0; i < subdivinfoList.Count; i++) {
+               //if (selftest) {
+
+               //   // !!! Für NT-Karten scheint das sinnlos zu sein. Vermutlich sind Punkte und Linien auf eine andere Art kodiert als bisher. !!!
+
+               //   DataBlock block = new DataBlock(src.Offset + start, subdivinfoList[i].Data.Length);
+               //   start += subdivinfoList[i].Data.Length;
+               //   List<StdFile_TRE.SubdivInfoBasic.SubdivContent> contentlst = new Subdiv().ContentTest(br, block);
+
+               //   if (contentlst.Count == 0)
+               //      subdivinfoList[i].Content = StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing;
+               //   else {
+               //      subdivinfoList[i].Content = contentlst[0];
+               //      Debug.WriteLineIf(contentlst.Count > 1, string.Format("Inhalt der Subdiv nicht eindeutig erkannt ({0} Möglichkeiten).", contentlst.Count));
+               //   }
+               //}
+
+               extdata[i] = subdivinfoList[i].Data.Length | ((uint)subdivinfoList[i].Content << 24);
+            }
+            SubdivList = br.ReadArray<SubdivData>(src, extdata);
+         }
+      }
+
+      void Decode_ExtAreasBlock(BinaryReaderWriter br, DataBlock src) {
+         long startadr = src.Offset;
+         long endpos = src.Offset + src.Length;
+         br.Seek(startadr);
+
+         // Indexliste aller Subdiv's aus der TRE-Datei erzeugen/kopieren, die erweiterte Polygone enthalten
+         int[] SubdivIdx = new int[TREFile.ExtAreaBlock4Subdiv.Count];
+         TREFile.ExtAreaBlock4Subdiv.Keys.CopyTo(SubdivIdx, 0); // die Schlüssel sind die Subdiv-Indexe
+
+         // ??? unklar, ob das IMMER 1-basiert ist ???
+         //for (int i = 0; i < SubdivIdx.Length; i++)  // 1-basierten Index in 0-basierten Index umwandeln
+         //   SubdivIdx[i]--;
+
+         int idx = 0;
+         int subdividx = SubdivIdx[idx];
+         List<ExtRawPolyData> lst = SubdivList[subdividx].ExtAreaList;     // Polygonliste des 1. Subdiv's, das erweiterte Polygone enthält
+         lst.Clear();
+         DataBlock tre_block = TREFile.ExtAreaBlock4Subdiv[subdividx];
+         long blockend = tre_block.Offset + tre_block.Length - startadr;
+
+         if (br != null)
+            while (br.Position < endpos) {
+               if (blockend == br.Position) {          // alles für die aktuelle Subdiv eingelesen, aber noch weitere Daten vorhanden
+                  if (idx > SubdivIdx.Length - 2 ||
+                      SubdivIdx[idx + 1] > SubdivList.Count - 1) {
+                     Debug.WriteLine("Ev. Fehler beim Einlesen der ExtPolyData (Flächen)");  // Bei einer Originalkarte wurde beobachtet, dass Daten für eine nicht ex. Subdiv enthalten waren.
+                     break;
+                  }
+
+                  subdividx = SubdivIdx[++idx];
+                  lst = SubdivList[subdividx].ExtAreaList;
+                  lst.Clear();
+                  tre_block = TREFile.ExtAreaBlock4Subdiv[subdividx];
+                  blockend = tre_block.Offset + tre_block.Length - startadr;
+               }
+               lst.Add(new ExtRawPolyData(br));
+            }
+      }
+
+      void Decode_ExtLinesBlock(BinaryReaderWriter br, DataBlock src) {
+         long startadr = src.Offset;
+         long endpos = src.Offset + src.Length;
+         br.Seek(startadr);
+
+         // Indexliste aller Subdiv's aus der TRE-Datei erzeugen/kopieren, die erweiterte Polygone enthalten
+         int[] SubdivIdx = new int[TREFile.ExtLineBlock4Subdiv.Count];
+         TREFile.ExtLineBlock4Subdiv.Keys.CopyTo(SubdivIdx, 0);
+
+         // ??? unklar, ob das IMMER 1-basiert ist ???
+         //for (int i = 0; i < SubdivIdx.Length; i++)  // 1-basierten Index in 0-basierten Index umwandeln
+         //   SubdivIdx[i]--;
+
+         int idx = 0;
+         int subdividx = SubdivIdx[idx];
+         List<ExtRawPolyData> lst = SubdivList[subdividx].ExtLineList;     // Polylineliste des 1. Subdiv's, das erweiterte Polygone enthält
+         lst.Clear();
+         DataBlock tre_block = TREFile.ExtLineBlock4Subdiv[subdividx];
+         long blockend = tre_block.Offset + tre_block.Length - startadr;
+
+         if (br != null)
+            while (br.Position < endpos) {
+               if (blockend == br.Position) {          // alles für die aktuelle Subdiv eingelesen, aber noch weitere Daten vorhanden
+                  if (idx > SubdivIdx.Length - 2 ||
+                      SubdivIdx[idx + 1] > SubdivList.Count - 1) {
+                     Debug.WriteLine("Ev. Fehler beim Einlesen der ExtPolyData (Linien)");  // Bei einer Originalkarte wurde beobachtet, dass Daten für eine nicht ex. Subdiv enthalten waren.
+                     break;
+                  }
+
+                  subdividx = SubdivIdx[++idx]; // Index ist 1-basiert
+                  lst = SubdivList[subdividx].ExtLineList;
+                  lst.Clear();
+                  tre_block = TREFile.ExtLineBlock4Subdiv[subdividx];
+                  blockend = tre_block.Offset + tre_block.Length - startadr;
+               }
+               lst.Add(new ExtRawPolyData(br));
+            }
+      }
+
+      void Decode_ExtPointsBlock(BinaryReaderWriter br, DataBlock src) {
+         long startadr = src.Offset;
+         long endpos = src.Offset + src.Length;
+         br.Seek(startadr);
+
+         // Indexliste aller Subdiv's aus der TRE-Datei erzeugen/kopieren, die erweiterte Polygone enthalten
+         int[] SubdivIdx = new int[TREFile.ExtPointBlock4Subdiv.Count];
+         TREFile.ExtPointBlock4Subdiv.Keys.CopyTo(SubdivIdx, 0);
+
+         // ??? unklar, ob das IMMER 1-basiert ist ???
+         //for (int i = 0; i < SubdivIdx.Length; i++)  // 1-basierten Index in 0-basierten Index umwandeln
+         //   SubdivIdx[i]--;
+
+         List<ExtRawPointData> lst = null;
+         DataBlock tre_block = null;
+         int idx = -1;
+         long blockend = 0;
+         if (br != null)
+            while (br.Position < endpos) {
+               if (br.Position > blockend - 6) {      // min. 6 Byte sind für einen Punkt nötig; jetzt neue Subdiv
+                  if (br.Position < blockend)
+                     Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Ende des Subdiv-Bereiches nicht erreicht. Noch " + (blockend - br.Position).ToString() + " Bytes übrig.");
+                  else if (blockend < br.Position)
+                     Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Ende des Subdiv-Bereiches um " + (br.Position - blockend).ToString() + " Bytes überschritten.");
+                  idx++;
+                  if (SubdivIdx[idx] >= SubdivList.Count) {
+                     Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Subdiv " + SubdivIdx[idx].ToString() + " existiert nicht.");
+                     return;
+                  }
+
+                  lst = SubdivList[SubdivIdx[idx]].ExtPointList;
+                  lst.Clear();
+                  tre_block = TREFile.ExtPointBlock4Subdiv[SubdivIdx[idx]];
+                  blockend = tre_block.Offset + tre_block.Length - startadr;
+                  br.Seek(tre_block.Offset);          // sollte eigentlich nicht nötig sein, aber sicher ist sicher
+               }
+               lst.Add(new ExtRawPointData(br));
+
+               if (lst[lst.Count - 1].HasUnknownFlag) {
+                  if (lst[lst.Count - 1].UnknownKey[0] == 0x41) {
+
+                  } else if (lst[lst.Count - 1].UnknownKey[0] == 0x03 &&
+                             lst[lst.Count - 1].UnknownKey[2] == 0x5A) {
+
+                  } else {
+
+                     Debug.WriteLine(string.Format("{0} {1}", tre_block, br));
+                     br.Seek(tre_block.Offset);
+                     Debug.WriteLine(Helper.DumpMemory(br.ToArray(), 0, (int)tre_block.Length, 16));
+
+                     br.Seek(blockend);
+
+                  }
+               }
+            }
+      }
+
+      #endregion
+
+      #region Encodierung der Datenblöcke
+
+      /// <summary>
+      /// schreibt den Subdiv-Block und korrigiert auch die TRE-SubdivInfo-Daten
+      /// </summary>
+      /// <param name="bw"></param>
+      void Encode_SubdivContentBlock(BinaryReaderWriter bw) {
+         if (bw != null) {
+            List<StdFile_TRE.SubdivInfoBasic> subdivinfoList = TREFile.SubdivInfoList;
+            uint offset = 0;
+            if (subdivinfoList != null &&
+                subdivinfoList.Count == SubdivList.Count)
+
+               for (int i = 0; i < SubdivList.Count; i++) {
+                  long startadr = bw.Position;
+                  SubdivList[i].Write(bw);
+                  uint sdlength = (uint)(bw.Position - startadr);
+
+                  subdivinfoList[i].Data.Offset = offset;
+                  offset += sdlength;
+                  subdivinfoList[i].Data.Length = sdlength;
+                  subdivinfoList[i].Content = (SubdivList[i].PointList.Count > 0 ?
+                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.poi :
+                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing) |
+                                              (SubdivList[i].IdxPointList.Count > 0 ?
+                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.idxpoi :
+                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing) |
+                                              (SubdivList[i].AreaList.Count > 0 ?
+                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.area :
+                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing) |
+                                              (SubdivList[i].LineList.Count > 0 ?
+                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.line :
+                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing);
+               }
+         }
+      }
+
+      /// <summary>
+      /// schreibt den Datenblock und erzeugt die zugehörigen TRE-Daten neu
+      /// </summary>
+      /// <param name="bw"></param>
+      void Encode_ExtAreasBlock(BinaryReaderWriter bw) {
+         TREFile.ExtAreaBlock4Subdiv.Clear();     // Offsets in der TRE-Datei neu bilden
+
+         uint startadr = (uint)bw.Position;
+         for (int sd = 0; sd < SubdivList.Count; sd++) {
+            List<ExtRawPolyData> extpolys = SubdivList[sd].ExtAreaList;
+            if (extpolys.Count > 0) {
+               DataBlock block = new DataBlock((uint)bw.Position, 0);
+               foreach (ExtRawPolyData poly in extpolys) {
+                  Bound rbound = poly.GetRawBoundDelta();
+                  if (rbound.Width > 0 && rbound.Height > 0) // sonst ist die Darstellung sinnlos
+                     poly.Write(bw);
+               }
+               block.Length = (uint)bw.Position - block.Offset;
+               block.Offset -= startadr;
+               TREFile.ExtAreaBlock4Subdiv.Add(sd, block);
+            }
+         }
+      }
+
+      /// <summary>
+      /// schreibt den Datenblock und erzeugt die zugehörigen TRE-Daten neu
+      /// </summary>
+      /// <param name="bw"></param>
+      void Encode_ExtLinesBlock(BinaryReaderWriter bw) {
+         TREFile.ExtLineBlock4Subdiv.Clear();     // Offsets in der TRE-Datei neu bilden
+
+         uint startadr = (uint)bw.Position;
+         for (int sd = 0; sd < SubdivList.Count; sd++) {
+            List<ExtRawPolyData> extpolys = SubdivList[sd].ExtLineList;
+            if (extpolys.Count > 0) {
+               DataBlock block = new DataBlock((uint)bw.Position, 0);
+               foreach (ExtRawPolyData poly in extpolys) {
+                  Bound rbound = poly.GetRawBoundDelta();
+                  if (rbound.Width > 0 && rbound.Height > 0) // sonst ist die Darstellung sinnlos
+                     poly.Write(bw);
+               }
+               block.Length = (uint)bw.Position - block.Offset;
+               block.Offset -= startadr;
+               TREFile.ExtLineBlock4Subdiv.Add(sd, block);
+            }
+         }
+      }
+
+      /// <summary>
+      /// schreibt den Datenblock und erzeugt die zugehörigen TRE-Daten neu
+      /// </summary>
+      /// <param name="bw"></param>
+      void Encode_ExtPointsBlock(BinaryReaderWriter bw) {
+         TREFile.ExtPointBlock4Subdiv.Clear();     // Offsets in der TRE-Datei neu bilden
+
+         uint startadr = (uint)bw.Position;
+         for (int sd = 0; sd < SubdivList.Count; sd++) {
+            List<ExtRawPointData> extpolys = SubdivList[sd].ExtPointList;
+            if (extpolys.Count > 0) {
+               DataBlock block = new DataBlock((uint)bw.Position, 0);
+               foreach (ExtRawPointData pt in extpolys)
+                  pt.Write(bw);
+               block.Length = (uint)bw.Position - block.Offset;
+               block.Offset -= startadr;
+               TREFile.ExtPointBlock4Subdiv.Add(sd, block);
+            }
+         }
+      }
+
+      /// <summary>
+      /// schreibt die Headerdaten und verwendet die akt. Dateiabschnitte dafür
+      /// </summary>
+      /// <param name="bw"></param>
+      protected override void Encode_Header(BinaryReaderWriter bw) {
+         if (bw != null) {
+            base.Encode_Header(bw);
+
+            SubdivContentBlock.Write(bw);
+            if (Headerlength > 0x1D) {
+               ExtAreasBlock.Write(bw);
+               bw.Write(Unknown_0x25);
+               ExtLinesBlock.Write(bw);
+               bw.Write(Unknown_0x41);
+               ExtPointsBlock.Write(bw);
+               bw.Write(Unknown_0x5D);
+               UnknownBlock_0x71.Write(bw);
+               bw.Write(Unknown_0x79);
+            }
+         }
+      }
+
+      #endregion
+
+      /*
+      void Test() {
+         byte[] data ={
+
+              0x10, 0xc4, 0xe7, 0xff, 0x0d, 0x00, 0xf1, 0x19, 0x01, 0x1c, 0x01, 0x97, 0x01, 0x54
+, 0x6f, 0x0d, 0x40, 0x64, 0xe0, 0x00, 0x03, 0x73, 0x5a, 0x6b, 0xe0, 0x40, 0x12, 0x75, 0xe0, 0x40
+, 0x03, 0x7e, 0xe0, 0x40, 0x06, 0x8d, 0xe0, 0x40, 0x02, 0x9a, 0xe0, 0x40, 0x0f, 0xa3, 0xe0, 0x40
+, 0x11, 0xad, 0xe0, 0x40, 0x07, 0x9a, 0xe0, 0x40, 0x0e, 0xbf, 0xe0, 0x40, 0x04, 0xc7, 0xe0, 0x40
+, 0x01, 0xd2, 0xe0,
+
+0x40, 0x05, 0xde, 0xe0, 0x40, 0x10, 0xe9, 0xe0,
+0x40, 0x08, 0xbb, 0xe0, 0x80, 0x9a
+                     };
+
+
+
+         for (int i = data.Length - 6; i >= 0; i--) {
+            byte[] buff = new byte[data.Length - i];
+            for (int j = i; j < data.Length; j++)
+               buff[j - i] = data[j];
+            Debug.WriteLine("------------- Länge=" + (data.Length - i).ToString() + ": " + Helper.DumpMemory(buff));
+
+            BinaryReaderWriter br = new BinaryReaderWriter(buff, 0, buff.Length);
+            Debug.WriteLine(br);
+            try {
+               while (br.Position < br.Length) {
+                  ExtPointData p = new ExtPointData(br);
+                  Debug.WriteLine("!!! i=" + i.ToString() + " " + p.ToString());
+                  //Debug.WriteLine("  " + br.ToString());
+               }
+            } catch (Exception ex) {
+               Debug.WriteLine("  ######### Exception: " + ex.Message);
+               continue;
+            }
+         }
+
+      }
+      */
+   }
+
+}
