@@ -341,7 +341,7 @@ namespace GarminCore.Files {
       /// <param name="br"></param>
       /// <returns></returns>
       public uint Read(int type, BinaryReaderWriter br) {
-         if (ContainsType(type))
+         if (ContainsType(type) && br != null)
             return sections[type].Read(br);
          return 0;
       }

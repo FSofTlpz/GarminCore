@@ -154,8 +154,11 @@ namespace GarminCore.Files {
 
          SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
 
-         // Pos. der anderen beiden Datenblöcke ermitteln
+         // Pos. der anderen beiden Datenblöcke ermitteln ...
          Decode_ContentsBlock(Filesections.GetSectionDataReader((int)InternalFileSections.ContentsBlock), new DataBlock(0, Filesections.GetLength((int)InternalFileSections.ContentsBlock)));
+         // ... und einlesen
+         Filesections.Read((int)InternalFileSections.DescriptionBlock, br);
+         Filesections.Read((int)InternalFileSections.CharacterLookupTableBlock, br);
       }
 
       protected override void DecodeSections() {
@@ -163,13 +166,11 @@ namespace GarminCore.Files {
          int filesectiontype;
 
          filesectiontype = (int)InternalFileSections.DescriptionBlock;
-         Filesections.Read(filesectiontype, Filesections.GetSectionDataReader(filesectiontype));
          if (Filesections.GetLength(filesectiontype) > 0) {
             Decode_DescriptionBlock(Filesections.GetSectionDataReader(filesectiontype), new DataBlock(0, Filesections.GetLength(filesectiontype)));
          }
 
          filesectiontype = (int)InternalFileSections.CharacterLookupTableBlock;
-         Filesections.Read(filesectiontype, Filesections.GetSectionDataReader(filesectiontype));
          if (Filesections.GetLength(filesectiontype) > 0) {
             Decode_CharacterLookupTableBlock(Filesections.GetSectionDataReader(filesectiontype), new DataBlock(0, Filesections.GetLength(filesectiontype)));
          }

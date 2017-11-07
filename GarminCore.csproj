@@ -31,14 +31,10 @@
     <RootNamespace>GarminCore</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Microsoft.CSharp" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Xml" />
-    <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BinaryReaderWriter.cs" />
@@ -53,6 +49,8 @@
     <Compile Include="DskImg\Header.cs" />
     <Compile Include="DskImg\MyStream.cs" />
     <Compile Include="DskImg\SimpleFilesystem.cs" />
+    <Compile Include="Files\DEM\SubtileTableitem.cs" />
+    <Compile Include="Files\DEM\ZoomlevelTableitem.cs" />
     <Compile Include="Files\FileSections.cs" />
     <Compile Include="Files\File_MDX.cs" />
     <Compile Include="Files\File_MPS.cs" />

@@ -34,6 +34,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using GarminCore.Files.DEM;
 
 namespace GarminCore.Files {
 
@@ -89,403 +90,421 @@ namespace GarminCore.Files {
       /// <summary>
       /// Tabelleneintrag für die Zoomlevel-Tabelle
       /// </summary>
-      public class ZoomlevelTableitem {
+      //public class ZoomlevelTableitem {
 
-         const ulong DEG_UNIT_FACTOR = 1UL << 32;
+      //   const ulong DEG_UNIT_FACTOR = 1UL << 32;
 
-         /// <summary>
-         /// spez. Type (i.A. 0, aber auch 1 gesehen)
-         /// </summary>
-         public byte SpecType { get; set; }
-         /// <summary>
-         /// Nummer des Eintrages (0, ...)
-         /// </summary>
-         public byte No { get; set; }
-         /// <summary>
-         /// Anzahl der Datenpunkte waagerecht
-         /// </summary>
-         public int PointsHoriz { get; set; }
-         /// <summary>
-         /// Anzahl der Datenpunkte senkrecht
-         /// </summary>
-         public int PointsVert { get; set; }
-         /// <summary>
-         /// Höhe -1 der letzten Zeile
-         /// </summary>
-         public int LastRowHeight { get; set; }
-         /// <summary>
-         /// Breite -1 der letzten Spalte
-         /// </summary>
-         public int LastColWidth { get; set; }
-         /// <summary>
-         /// unbekannt auf 0x12
-         /// </summary>
-         public short Unknown12 { get; set; }
-         /// <summary>
-         /// größter Subtile-Index waagerecht (Anzahl -1)
-         /// </summary>
-         public int MaxIdxHoriz { get; set; }
-         /// <summary>
-         /// größter Subtile-Index senkrecht (Anzahl -1)
-         /// </summary>
-         public int MaxIdxVert { get; set; }
-         /// <summary>
-         /// Struktur des Subtile-Tabelleneintrags (Länge der einzelnen Elemente)
-         /// </summary>
-         public short Structure { get; private set; }
-         /// <summary>
-         /// 1..3
-         /// </summary>
-         public int Structure_OffsetSize {
-            get {
-               return 1 + (Structure & 0x3);
-            }
-            set {
-               switch (value) {
-                  case 1: Structure = (short)((Structure & 0xFFFC)); break;
-                  case 2: Structure = (short)((Structure & 0xFFFC) | 0x1); break;
-                  case 3: Structure = (short)((Structure & 0xFFFC) | 0x2); break;
-               }
-            }
-         }
-         /// <summary>
-         /// 1, 2
-         /// </summary>
-         public int Structure_BaseheightSize {
-            get {
-               return 1 + ((Structure >> 2) & 0x1);
-            }
-            set {
-               switch (value) {
-                  case 1: Structure = (short)((Structure & 0xFFFB)); break;
-                  case 2: Structure = (short)((Structure & 0xFFFB) | 0x4); break;
-               }
-            }
-         }
-         /// <summary>
-         /// 1, 2
-         /// </summary>
-         public int Structure_DiffSize {
-            get {
-               return 1 + ((Structure >> 3) & 0x1);
-            }
-            set {
-               switch (value) {
-                  case 1: Structure = (short)((Structure & 0xFFF7)); break;
-                  case 2: Structure = (short)((Structure & 0xFFF7) | 0x8); break;
-               }
-            }
-         }
-         /// <summary>
-         /// 0, 1
-         /// </summary>
-         public int Structure_CodingtypeSize {
-            get {
-               return (Structure & 0x10) >> 4;
-            }
-            set {
-               switch (value) {
-                  case 0: Structure = (short)((Structure & 0xFFEF)); break;
-                  case 1: Structure = (short)((Structure & 0xFFEF) | 0x10); break;
-               }
-            }
-         }
-         /// <summary>
-         /// Länge des Subtile-Tabelleneintrags
-         /// </summary>
-         public short SubtileTableitemSize {
-            get {
-               return (short)(Structure_OffsetSize + Structure_BaseheightSize + Structure_DiffSize + Structure_CodingtypeSize);
-            }
-         }
-         /// <summary>
-         /// Pointer auf die Subtile-Tabelle (bezogen auf den Dateianfang)
-         /// </summary>
-         public uint PtrSubtileTable { get; set; }
-         /// <summary>
-         /// Pointer auf den Höhendatenbereich (bezogen auf den Dateianfang)
-         /// </summary>
-         public uint PtrHeightdata { get; set; }
+      //   /// <summary>
+      //   /// spez. Type (i.A. 0, aber auch 1 gesehen)
+      //   /// </summary>
+      //   public byte SpecType { get; set; }
+      //   /// <summary>
+      //   /// Nummer des Eintrages (0, ...)
+      //   /// </summary>
+      //   public byte No { get; set; }
+      //   /// <summary>
+      //   /// Anzahl der Datenpunkte waagerecht
+      //   /// </summary>
+      //   public int PointsHoriz { get; set; }
+      //   /// <summary>
+      //   /// Anzahl der Datenpunkte senkrecht
+      //   /// </summary>
+      //   public int PointsVert { get; set; }
+      //   /// <summary>
+      //   /// Höhe -1 der letzten Zeile
+      //   /// </summary>
+      //   public int LastRowHeight { get; set; }
+      //   /// <summary>
+      //   /// Breite -1 der letzten Spalte
+      //   /// </summary>
+      //   public int LastColWidth { get; set; }
+      //   /// <summary>
+      //   /// unbekannt auf 0x12
+      //   /// </summary>
+      //   public short Unknown12 { get; set; }
+      //   /// <summary>
+      //   /// größter Subtile-Index waagerecht (Anzahl -1)
+      //   /// </summary>
+      //   public int MaxIdxHoriz { get; set; }
+      //   /// <summary>
+      //   /// größter Subtile-Index senkrecht (Anzahl -1)
+      //   /// </summary>
+      //   public int MaxIdxVert { get; set; }
+      //   /// <summary>
+      //   /// Struktur des Subtile-Tabelleneintrags (Länge der einzelnen Elemente)
+      //   /// </summary>
+      //   public short Structure { get; private set; }
+      //   /// <summary>
+      //   /// 1..3
+      //   /// </summary>
+      //   public int Structure_OffsetSize {
+      //      get {
+      //         return 1 + (Structure & 0x3);
+      //      }
+      //      set {
+      //         switch (value) {
+      //            case 1: Structure = (short)((Structure & 0xFFFC)); break;
+      //            case 2: Structure = (short)((Structure & 0xFFFC) | 0x1); break;
+      //            case 3: Structure = (short)((Structure & 0xFFFC) | 0x2); break;
+      //            case 4: Structure = (short)((Structure & 0xFFFC) | 0x3); break;
+      //         }
+      //      }
+      //   }
+      //   /// <summary>
+      //   /// 1, 2
+      //   /// </summary>
+      //   public int Structure_BaseheightSize {
+      //      get {
+      //         return 1 + ((Structure >> 2) & 0x1);
+      //      }
+      //      set {
+      //         switch (value) {
+      //            case 1: Structure = (short)((Structure & 0xFFFB)); break;
+      //            case 2: Structure = (short)((Structure & 0xFFFB) | 0x4); break;
+      //         }
+      //      }
+      //   }
+      //   /// <summary>
+      //   /// 1, 2
+      //   /// </summary>
+      //   public int Structure_DiffSize {
+      //      get {
+      //         return 1 + ((Structure >> 3) & 0x1);
+      //      }
+      //      set {
+      //         switch (value) {
+      //            case 1: Structure = (short)((Structure & 0xFFF7)); break;
+      //            case 2: Structure = (short)((Structure & 0xFFF7) | 0x8); break;
+      //         }
+      //      }
+      //   }
+      //   /// <summary>
+      //   /// 0, 1
+      //   /// </summary>
+      //   public int Structure_CodingtypeSize {
+      //      get {
+      //         return (Structure & 0x10) >> 4;
+      //      }
+      //      set {
+      //         switch (value) {
+      //            case 0: Structure = (short)((Structure & 0xFFEF)); break;
+      //            case 1: Structure = (short)((Structure & 0xFFEF) | 0x10); break;
+      //         }
+      //      }
+      //   }
+      //   /// <summary>
+      //   /// Länge des Subtile-Tabelleneintrags
+      //   /// </summary>
+      //   public short SubtileTableitemSize {
+      //      get {
+      //         return (short)(Structure_OffsetSize + Structure_BaseheightSize + Structure_DiffSize + Structure_CodingtypeSize);
+      //      }
+      //   }
+      //   /// <summary>
+      //   /// Pointer auf die Subtile-Tabelle (bezogen auf den Dateianfang)
+      //   /// </summary>
+      //   public uint PtrSubtileTable { get; set; }
+      //   /// <summary>
+      //   /// Pointer auf den Höhendatenbereich (bezogen auf den Dateianfang)
+      //   /// </summary>
+      //   public uint PtrHeightdata { get; set; }
 
-         int _West = 0;
-         /// <summary>
-         /// westliche Grenze der Kachel
-         /// </summary>
-         public double West {
-            get {
-               return Unit2Degree(_West);
-            }
-            set {
-               _West = Degree2Unit(value);
-            }
-         }
+      //   int _West = 0;
+      //   /// <summary>
+      //   /// westliche Grenze der Kachel
+      //   /// </summary>
+      //   public double West {
+      //      get {
+      //         return Unit2Degree(_West);
+      //      }
+      //      set {
+      //         _West = Degree2Unit(value);
+      //      }
+      //   }
 
-         int _North = 0;
-         /// <summary>
-         /// nördliche Grenze der Kachel
-         /// </summary>
-         public double North {
-            get {
-               return Unit2Degree(_North);
-            }
-            set {
-               _North = Degree2Unit(value);
-            }
-         }
+      //   int _North = 0;
+      //   /// <summary>
+      //   /// nördliche Grenze der Kachel
+      //   /// </summary>
+      //   public double North {
+      //      get {
+      //         return Unit2Degree(_North);
+      //      }
+      //      set {
+      //         _North = Degree2Unit(value);
+      //      }
+      //   }
 
-         int _PointDistanceHoriz = 0;
-         /// <summary>
-         /// waagerechter Abstand zwischen den Datenpunkten
-         /// </summary>
-         public double PointDistanceHoriz {
-            get {
-               return Unit2Degree(_PointDistanceHoriz);
-            }
-            set {
-               _PointDistanceHoriz = Degree2Unit(value);
-            }
-         }
+      //   int _PointDistanceHoriz = 0;
+      //   /// <summary>
+      //   /// waagerechter Abstand zwischen den Datenpunkten
+      //   /// </summary>
+      //   public double PointDistanceHoriz {
+      //      get {
+      //         return Unit2Degree(_PointDistanceHoriz);
+      //      }
+      //      set {
+      //         _PointDistanceHoriz = Degree2Unit(value);
+      //      }
+      //   }
 
-         int _PointDistanceVert = 0;
-         /// <summary>
-         /// senkrechter Abstand zwischen den Datenpunkten
-         /// </summary>
-         public double PointDistanceVert {
-            get {
-               return Unit2Degree(_PointDistanceVert);
-            }
-            set {
-               _PointDistanceVert = Degree2Unit(value);
-            }
-         }
+      //   int _PointDistanceVert = 0;
+      //   /// <summary>
+      //   /// senkrechter Abstand zwischen den Datenpunkten
+      //   /// </summary>
+      //   public double PointDistanceVert {
+      //      get {
+      //         return Unit2Degree(_PointDistanceVert);
+      //      }
+      //      set {
+      //         _PointDistanceVert = Degree2Unit(value);
+      //      }
+      //   }
 
-         /// <summary>
-         /// kleinste Basishöhe eines Subtiles
-         /// </summary>
-         public short MinHeight { get; set; }
-         /// <summary>
-         /// größte Höhe
-         /// </summary>
-         public short MaxHeight { get; set; }
+      //   /// <summary>
+      //   /// kleinste Basishöhe eines Subtiles
+      //   /// </summary>
+      //   public short MinHeight { get; set; }
+      //   /// <summary>
+      //   /// größte Höhe
+      //   /// </summary>
+      //   public short MaxHeight { get; set; }
 
-         public int SubtileCount {
-            get {
-               return (1 + MaxIdxHoriz) * (1 + MaxIdxVert);
-            }
-         }
+      //   public int SubtileCount {
+      //      get {
+      //         return (1 + MaxIdxHoriz) * (1 + MaxIdxVert);
+      //      }
+      //   }
 
 
-         public ZoomlevelTableitem() {
-            SpecType = 0;
-            No = 0;
-            PointsHoriz = PointsVert = 64;
-            LastRowHeight = 64;
-            LastColWidth = 64;
-            Unknown12 = 0;
-            MaxIdxHoriz = MaxIdxVert = 0;
-            Structure = 0;
-            Structure_OffsetSize = 3;
-            Structure_BaseheightSize = 2;
-            Structure_DiffSize = 2;
-            Structure_CodingtypeSize = 1;
-            West = 12.0;
-            North = 54.0;
-            PointDistanceHoriz = PointDistanceVert = 0.00028;
-            MinHeight = 0;
-            MaxHeight = 0;
-         }
+      //   public ZoomlevelTableitem() {
+      //      SpecType = 0;
+      //      No = 0;
+      //      PointsHoriz = PointsVert = 64;
+      //      LastRowHeight = 64;
+      //      LastColWidth = 64;
+      //      Unknown12 = 0;
+      //      MaxIdxHoriz = MaxIdxVert = 0;
+      //      Structure = 0;
+      //      Structure_OffsetSize = 3;
+      //      Structure_BaseheightSize = 2;
+      //      Structure_DiffSize = 2;
+      //      Structure_CodingtypeSize = 1;
+      //      West = 12.0;
+      //      North = 54.0;
+      //      PointDistanceHoriz = PointDistanceVert = 0.00028;
+      //      MinHeight = 0;
+      //      MaxHeight = 0;
+      //   }
 
-         public void Read(BinaryReaderWriter br, UInt16 recordlen) {
-            if (recordlen >= 0x3C) {
-               SpecType = br.ReadByte();
-               No = br.ReadByte();
-               PointsHoriz = br.ReadInt32();
-               PointsVert = br.ReadInt32();
-               LastRowHeight = br.ReadInt32();
-               LastColWidth = br.ReadInt32();
-               Unknown12 = br.ReadInt16();
-               MaxIdxHoriz = br.ReadInt32();
-               MaxIdxVert = br.ReadInt32();
-               Structure = br.ReadInt16();
-               short tmp = br.ReadInt16();   // SubtileTableitemSize: ergibt sich schon aus Structure
-               PtrSubtileTable = br.ReadUInt32();
-               PtrHeightdata = br.ReadUInt32();
-               _West = br.ReadInt32();
-               _North = br.ReadInt32();
-               _PointDistanceVert = br.ReadInt32();
-               _PointDistanceHoriz = br.ReadInt32();
-               MinHeight = br.ReadInt16();
-               MaxHeight = br.ReadInt16();
-            }
-         }
+      //   public void Read(BinaryReaderWriter br, UInt16 recordlen) {
+      //      if (recordlen >= 0x3C) {
+      //         SpecType = br.ReadByte();
+      //         No = br.ReadByte();
+      //         PointsHoriz = br.ReadInt32();
+      //         PointsVert = br.ReadInt32();
+      //         LastRowHeight = br.ReadInt32();
+      //         LastColWidth = br.ReadInt32();
+      //         Unknown12 = br.ReadInt16();
+      //         MaxIdxHoriz = br.ReadInt32();
+      //         MaxIdxVert = br.ReadInt32();
+      //         Structure = br.ReadInt16();
+      //         short tmp = br.ReadInt16();   // SubtileTableitemSize: ergibt sich schon aus Structure
+      //         PtrSubtileTable = br.ReadUInt32();
+      //         PtrHeightdata = br.ReadUInt32();
+      //         _West = br.ReadInt32();
+      //         _North = br.ReadInt32();
+      //         _PointDistanceVert = br.ReadInt32();
+      //         _PointDistanceHoriz = br.ReadInt32();
+      //         MinHeight = br.ReadInt16();
+      //         MaxHeight = br.ReadInt16();
+      //      }
+      //   }
 
-         public void Write(BinaryReaderWriter bw) {
-            bw.Write(SpecType);
-            bw.Write(No);
-            bw.Write(PointsHoriz);
-            bw.Write(PointsVert);
-            bw.Write(LastRowHeight);
-            bw.Write(LastColWidth);
-            bw.Write(Unknown12);
-            bw.Write(MaxIdxHoriz);
-            bw.Write(MaxIdxVert);
-            bw.Write(Structure);
-            bw.Write(SubtileTableitemSize);
-            bw.Write(PtrSubtileTable);
-            bw.Write(PtrHeightdata);
-            bw.Write(_West);
-            bw.Write(_North);
-            bw.Write(_PointDistanceVert);
-            bw.Write(_PointDistanceHoriz);
-            bw.Write(MinHeight);
-            bw.Write(MaxHeight);
-         }
+      //   public void Write(BinaryReaderWriter bw) {
+      //      bw.Write(SpecType);
+      //      bw.Write(No);
+      //      bw.Write(PointsHoriz);
+      //      bw.Write(PointsVert);
+      //      bw.Write(LastRowHeight);
+      //      bw.Write(LastColWidth);
+      //      bw.Write(Unknown12);
+      //      bw.Write(MaxIdxHoriz);
+      //      bw.Write(MaxIdxVert);
+      //      bw.Write(Structure);
+      //      bw.Write(SubtileTableitemSize);
+      //      bw.Write(PtrSubtileTable);
+      //      bw.Write(PtrHeightdata);
+      //      bw.Write(_West);
+      //      bw.Write(_North);
+      //      bw.Write(_PointDistanceVert);
+      //      bw.Write(_PointDistanceHoriz);
+      //      bw.Write(MinHeight);
+      //      bw.Write(MaxHeight);
+      //   }
 
-         public static int Degree2Unit(double degree) {
-            return (int)(degree / 360.0 * DEG_UNIT_FACTOR);
-         }
+      //   public static int Degree2Unit(double degree) {
+      //      return (int)(degree / 360.0 * DEG_UNIT_FACTOR);
+      //   }
 
-         public static double Unit2Degree(int unit) {
-            return unit * 360.0 / DEG_UNIT_FACTOR;
-         }
+      //   public static double Unit2Degree(int unit) {
+      //      return unit * 360.0 / DEG_UNIT_FACTOR;
+      //   }
 
-      }
+      //}
 
       /// <summary>
       /// Tabelleneintrag für die Subtile-Tabelle
       /// </summary>
-      public class SubtileTableitem {
-         /// <summary>
-         /// Offset auf die Daten (bezogen auf den Anfang des Höhendatenbereichs)
-         /// </summary>
-         public uint Offset { get; set; }
-         /// <summary>
-         /// Bezugshöhe
-         /// </summary>
-         public short Baseheight { get; set; }
-         /// <summary>
-         /// max. Höhendiff.
-         /// </summary>
-         public ushort Diff { get; set; }
-         /// <summary>
-         /// Codiertyp
-         /// </summary>
-         public byte Type { get; set; }
+      //public class SubtileTableitem {
+      //   /// <summary>
+      //   /// Offset auf die Daten (bezogen auf den Anfang des Höhendatenbereichs)
+      //   /// </summary>
+      //   public uint Offset { get; set; }
+      //   /// <summary>
+      //   /// Bezugshöhe
+      //   /// </summary>
+      //   public short Baseheight { get; set; }
+      //   /// <summary>
+      //   /// max. Höhendiff.
+      //   /// </summary>
+      //   public ushort Diff { get; set; }
+      //   /// <summary>
+      //   /// Codiertyp
+      //   /// </summary>
+      //   public byte Type { get; set; }
 
 
-         public SubtileTableitem(uint offset = 0, short baseheight = 0, ushort diff = 0, byte type = 0) {
-            Offset = offset;
-            Baseheight = baseheight;
-            Diff = diff;
-            Type = type;
-         }
+      //   public SubtileTableitem(uint offset = 0, short baseheight = 0, ushort diff = 0, byte type = 0) {
+      //      Offset = offset;
+      //      Baseheight = baseheight;
+      //      Diff = diff;
+      //      Type = type;
+      //   }
 
-         /// <summary>
-         /// liest einen Tabelleneintrag ein
-         /// </summary>
-         /// <param name="br"></param>
-         /// <param name="offset_len">Länge des Speicherbereichs für den Offset in Byte</param>
-         /// <param name="baseheight_len">Länge des Speicherbereichs für die Basishöhe in Byte</param>
-         /// <param name="diff_len">Länge des Speicherbereichs in Byte</param>
-         /// <param name="extraBytes">wenn größer 0, dann 1 zusätzliches Byte</param>
-         public void Read(BinaryReaderWriter br, int offset_len = 3, int baseheight_len = 2, int diff_len = 2, int type_len = 1) {
+      //   /// <summary>
+      //   /// liest einen Tabelleneintrag ein
+      //   /// </summary>
+      //   /// <param name="br"></param>
+      //   /// <param name="offset_len">Länge des Speicherbereichs für den Offset in Byte</param>
+      //   /// <param name="baseheight_len">Länge des Speicherbereichs für die Basishöhe in Byte</param>
+      //   /// <param name="diff_len">Länge des Speicherbereichs in Byte</param>
+      //   /// <param name="extraBytes">wenn größer 0, dann 1 zusätzliches Byte</param>
+      //   public void Read(BinaryReaderWriter br, int offset_len = 3, int baseheight_len = 2, int diff_len = 2, int type_len = 1) {
 
-            switch (offset_len) {
-               case 1:
-                  Offset = br.ReadByte();
-                  break;
+      //      switch (offset_len) {
+      //         case 1:
+      //            Offset = br.ReadByte();
+      //            break;
 
-               case 2:
-                  Offset = br.ReadUInt16();
-                  break;
+      //         case 2:
+      //            Offset = br.ReadUInt16();
+      //            break;
 
-               case 3:
-                  Offset = br.Read3U();
-                  break;
+      //         case 3:
+      //            Offset = br.Read3U();
+      //            break;
 
-               case 4:
-                  Offset = br.ReadUInt32();
-                  break;
-            }
+      //         case 4:
+      //            Offset = br.ReadUInt32();
+      //            break;
+      //      }
 
-            switch (baseheight_len) {
-               case 1:
-                  Baseheight = br.ReadByte();
-                  break;
+      //      switch (baseheight_len) {
+      //         case 1:
+      //            Baseheight = br.ReadByte();
+      //            break;
 
-               case 2:
-                  Baseheight = br.ReadInt16();
-                  break;
-            }
+      //         case 2:
+      //            Baseheight = br.ReadInt16();
+      //            break;
+      //      }
 
-            switch (diff_len) {
-               case 1:
-                  Diff = br.ReadByte();
-                  break;
+      //      switch (diff_len) {
+      //         case 1:
+      //            Diff = br.ReadByte();
+      //            break;
 
-               case 2:
-                  Diff = br.ReadUInt16();
-                  break;
-            }
+      //         case 2:
+      //            Diff = br.ReadUInt16();
+      //            break;
+      //      }
 
-            if (type_len > 0)
-               Type = br.ReadByte();
-         }
+      //      if (type_len > 0)
+      //         Type = br.ReadByte();
+      //   }
 
-         /// <summary>
-         /// schreibt den Tabelleneintrag
-         /// </summary>
-         /// <param name="bw"></param>
-         /// <param name="offset_len">Byteanzahl für Offset</param>
-         /// <param name="baseheight_len">Byteanzahl für Bezugshöhe</param>
-         /// <param name="diff_len">Byteanzahl für Höhendiff</param>
-         /// <param name="type_len">Byteanzahl für Codiertyp (hier auch 0 möglich)</param>
-         public void Write(BinaryReaderWriter bw, int offset_len = 3, int baseheight_len = 2, int diff_len = 2, int type_len = 1) {
-            // Offset
-            switch (offset_len) {
-               case 1:
-                  bw.Write((byte)Offset);
-                  break;
-               case 2:
-                  bw.Write((ushort)Offset);
-                  break;
-               case 3:
-                  bw.Write3(Offset);
-                  break;
-            }
+      //   /// <summary>
+      //   /// schreibt den Tabelleneintrag
+      //   /// </summary>
+      //   /// <param name="bw"></param>
+      //   /// <param name="offset_len">Byteanzahl für Offset</param>
+      //   /// <param name="baseheight_len">Byteanzahl für Bezugshöhe</param>
+      //   /// <param name="diff_len">Byteanzahl für Höhendiff</param>
+      //   /// <param name="type_len">Byteanzahl für Codiertyp (hier auch 0 möglich)</param>
+      //   public void Write(BinaryWriter w, int offset_len = 3, int baseheight_len = 2, int diff_len = 2, int type_len = 1) {
+      //      // Offset
+      //      switch (offset_len) {
+      //         case 1:
+      //            w.Write((byte)(Offset & 0xFF));
+      //            break;
+      //         case 2:
+      //            w.Write((byte)(Offset & 0xFF));
+      //            w.Write((byte)((Offset & 0xFF00) >> 8));
+      //            break;
+      //         case 3:
+      //            w.Write((byte)(Offset & 0xFF));
+      //            w.Write((byte)((Offset & 0xFF00) >> 8));
+      //            w.Write((byte)((Offset & 0xFF0000) >> 16));
+      //            break;
+      //         case 4:
+      //            w.Write((byte)(Offset & 0xFF));
+      //            w.Write((byte)((Offset & 0xFF00) >> 8));
+      //            w.Write((byte)((Offset & 0xFF0000) >> 16));
+      //            w.Write((byte)((Offset & 0xFF000000) >> 24));
+      //            break;
+      //         default:
+      //            throw new System.Exception("Die Offsetlänge im Tabelleneintrag darf größer als 4 sein.");
+      //      }
 
-            // Basishöhe
-            switch (baseheight_len) {
-               case 1:
-                  bw.Write((byte)Baseheight);
-                  break;
-               case 2:
-                  bw.Write(Baseheight);
-                  break;
-            }
+      //      // Basishöhe
+      //      switch (baseheight_len) {
+      //         case 1:
+      //            w.Write((byte)(Baseheight & 0xFF));
+      //            break;
+      //         case 2:
+      //            w.Write((byte)(Baseheight & 0xFF));
+      //            w.Write((byte)((Baseheight & 0xFF00) >> 8));
+      //            break;
+      //         default:
+      //            throw new System.Exception("Die Basishöhenlänge im Tabelleneintrag darf größer als 2 sein.");
+      //      }
 
-            // Diff.
-            switch (diff_len) {
-               case 1:
-                  bw.Write((byte)Diff);
-                  break;
-               case 2:
-                  bw.Write(Diff);
-                  break;
-            }
+      //      // Diff.
+      //      switch (diff_len) {
+      //         case 1:
+      //            w.Write((byte)(Diff & 0xFF));
+      //            break;
+      //         case 2:
+      //            w.Write((byte)(Diff & 0xFF));
+      //            w.Write((byte)((Diff & 0xFF00) >> 8));
+      //            break;
+      //         default:
+      //            throw new System.Exception("Die Differenzhöhenlänge im Tabelleneintrag darf größer als 2 sein.");
+      //      }
 
-            // Typ
-            if (type_len > 0) {
-               bw.Write(Type);
-            }
+      //      // Typ
+      //      if (type_len > 0) {
+      //         w.Write(Type);
+      //      }
 
-         }
+      //   }
 
-         public override string ToString() {
-            return string.Format("Offset 0x{0:X}, Baseheight 0x{1:X}, Diff 0x{2:X}, Type 0x{3:X}", Offset, Baseheight, Diff, Type);
-         }
+      //   public override string ToString() {
+      //      return string.Format("Offset 0x{0:X}, Baseheight 0x{1:X}, Diff 0x{2:X}, Type 0x{3:X}", Offset, Baseheight, Diff, Type);
+      //   }
 
-      }
+      //}
 
       /// <summary>
       /// Hier werden die Höhendaten und die Daten des Tabelleneintrages eines Subtiles zusammengefasst.
@@ -648,6 +667,7 @@ namespace GarminCore.Files {
                      if (stilst[j].Offset > 0)
                         break;
                   }
+
                   uint len = j < stilst.Count - 1 ?
                                     stilst[j].Offset - stilst[i].Offset :
                                     dataendpos - (uint)br.Position;
