@@ -456,7 +456,9 @@ namespace GarminCore.DskImg {
          if (idx >= 0) {
             MyStream stream = new MyStream(Files[idx].Backgroundfile, GetFiledata(Files[idx], binreader), Files[idx], false);
             stream.NewSize += stream_NewSize;
-            return new BinaryReaderWriter(stream);
+            BinaryReaderWriter br= new BinaryReaderWriter(stream);
+            br.XOR = ImgHeader.XOR;
+            return br;
          }
          return null;
       }

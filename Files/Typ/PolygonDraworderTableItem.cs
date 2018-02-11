@@ -38,16 +38,18 @@ namespace GarminCore.Files.Typ {
    /// <summary>
    /// Hilfsklasse um die Zeichenreihenfolge zu behandeln
    /// </summary>
-   internal class PolygonDraworderTableItem {
+   public class PolygonDraworderTableItem {
 
       /// <summary>
       /// Polygontyp (wenn größer als 0xFF, dann mit Subtypes)
       /// </summary>
-      public uint Typ { get; private set; }
+      public uint Type { get; private set; }
+
       /// <summary>
       /// Subtypen (1 oder mehrere)
       /// </summary>
       public List<uint> Subtypes { get; private set; }
+
       /// <summary>
       /// Draworder
       /// </summary>
@@ -60,7 +62,7 @@ namespace GarminCore.Files.Typ {
       /// <param name="level"></param>
       public PolygonDraworderTableItem(uint typ = 0, uint level = 0) {
          Subtypes = new List<uint>();
-         Typ = typ;
+         Type = typ;
          Level = level;
       }
 
@@ -75,7 +77,7 @@ namespace GarminCore.Files.Typ {
          if (length > 9)
             throw new Exception("Ein PolygonDraworderTableItem darf max. 9 Byte lang sein.");
          Level = level;
-         Typ = br.ReadByte();
+         Type = br.ReadByte();
          length--;
 
          // insgesamt 32 Bit für 31 Sublevel
@@ -100,7 +102,7 @@ namespace GarminCore.Files.Typ {
             byte mask = 0x01;
             for (uint bit = 0; bit < 8; bit++) {
                if ((bv & mask) != 0x0)
-                  SetSubtyp(bit + 8 * b);
+                  SetSubtype(bit + 8 * b);
                mask <<= 1;
             }
          }
@@ -108,14 +110,14 @@ namespace GarminCore.Files.Typ {
          if (Subtypes.Count == 0)
             Subtypes.Add(0);
          else
-            Typ = (Typ + 0x100);
+            Type += 0x100;
       }
 
       /// <summary>
       /// fügt einen zusätzlichen Subtyp hinzu
       /// </summary>
       /// <param name="subtyp"></param>
-      public void SetSubtyp(uint subtyp) {
+      public void SetSubtype(uint subtyp) {
          if (!Subtypes.Contains(subtyp))
             Subtypes.Add(subtyp);
       }
@@ -126,11 +128,11 @@ namespace GarminCore.Files.Typ {
       /// <param name="bw"></param>
       /// <param name="length"></param>
       public void Write(BinaryReaderWriter bw, int length) {
-         bw.Write((byte)(Typ & 0xff));
+         bw.Write((byte)(Type & 0xff));
          length--;
 
          byte[] b = new byte[length];
-         if (0xFF < Typ)                  // dann auch Subtypes berücksichtigen
+         if (0xFF < Type)                  // dann auch Subtypes berücksichtigen
             for (int i = 0; i < Subtypes.Count; i++) {
                uint bidx = Subtypes[i] / 8;        // Byte-Index (0..)
                b[bidx] |= (byte)(0x01 << (int)(Subtypes[i] % 8));
@@ -143,7 +145,7 @@ namespace GarminCore.Files.Typ {
          StringBuilder sb = new StringBuilder();
          sb.Append("Draworder=[");
          sb.Append("Level " + Level.ToString());
-         sb.Append(", Typ 0x" + Typ.ToString("x"));
+         sb.Append(", Typ 0x" + Type.ToString("x"));
          if (Subtypes.Count > 0)
             sb.Append(", Subtyp/s");
          for (int i = 0; i < Subtypes.Count; i++)

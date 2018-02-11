@@ -105,6 +105,11 @@ namespace GarminCore.Files {
       public UInt16 Unknown2;
 
       /// <summary>
+      /// sollte mit der Anzahl in <see cref="Maps"/> übereinstimmen
+      /// </summary>
+      public UInt32 Count;
+
+      /// <summary>
       /// Liste der Teilkarten
       /// </summary>
       public List<MapEntry> Maps;
@@ -121,6 +126,7 @@ namespace GarminCore.Files {
       /// </summary>
       /// <param name="br"></param>
       public void Read(BinaryReaderWriter br) {
+         br.Seek(0);
          byte[] id = br.ReadBytes(6);
 
          if (id[0] != 'M' ||
@@ -134,9 +140,9 @@ namespace GarminCore.Files {
          Unknown1 = br.ReadUInt16();
          Unknown2 = br.ReadUInt16();
 
-         UInt32 count = br.ReadUInt32();
+         Count = br.ReadUInt32();
          Maps.Clear();
-         for (int i = 0; i < count; i++) {
+         for (int i = 0; i < Count; i++) {
             MapEntry entry = new MapEntry();
             entry.Read(br);
             Maps.Add(entry);

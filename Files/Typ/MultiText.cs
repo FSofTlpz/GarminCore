@@ -199,7 +199,7 @@ namespace GarminCore.Files.Typ {
       /// liefert die real benötigte Länge in Byte für den Textbereich (ohne Längenkennung)
       /// </summary>
       /// <returns></returns>
-      protected int GetRealLength() {
+      public int GetRealLength() {
          int len = 0;
          foreach (Text.LanguageCode code in txt.Keys)
             len += txt[code].Length + 2;     // (Text + 1 Byte Ländercode + 1 0-Byte)

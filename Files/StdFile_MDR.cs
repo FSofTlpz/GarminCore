@@ -310,6 +310,12 @@ MDR32/33 StreetAddress Words Table
 
       #endregion
 
+      /// <summary>
+      /// liefert den PostHeader-Datenbereich
+      /// </summary>
+      /// <returns></returns>
+      public DataBlock PostHeaderDataBlock { get; private set; }
+
       enum InternalFileSections {
          PostHeaderData = 0,
          Mdr1,
@@ -342,7 +348,7 @@ MDR32/33 StreetAddress Words Table
       }
 
       public override void ReadHeader(BinaryReaderWriter br) {
-         base.ReadCommonHeader(br, Typ);
+         base.ReadCommonHeader(br, Type);
 
          Filesections.ClearSections();
 
@@ -418,13 +424,17 @@ MDR32/33 StreetAddress Words Table
          Filesections.AddSection((int)InternalFileSections.Mdr16, new DataBlockWithRecordsize(Mdr16));
          Filesections.AddSection((int)InternalFileSections.Mdr17, new DataBlock(Mdr17));
          Filesections.AddSection((int)InternalFileSections.Mdr18, new DataBlockWithRecordsize(Mdr18));
-         if (GapOffset > HeaderOffset + Headerlength) // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
-            Filesections.AddSection((int)InternalFileSections.PostHeaderData, HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+
+         // GapOffset und DataOffset setzen
+         SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
+
+         if (GapOffset > HeaderOffset + Headerlength) { // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
+            PostHeaderDataBlock = new DataBlock(HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+            Filesections.AddSection((int)InternalFileSections.PostHeaderData, PostHeaderDataBlock);
+         }
 
          // Datenblöcke einlesen
          Filesections.ReadSections(br);
-
-         SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
       }
 
       protected override void DecodeSections() {

@@ -44,10 +44,10 @@ namespace GarminCore.DskImg {
       /// <summary>
       /// offensichtlich fest definierte Größe des Header-Blocks
       /// </summary>
-      const int SECTOR_BLOCKSIZE = 512;
-      const string SIGNATURE = "DSKIMG";
-      const string MAPFILEIDENTIFIER = "GARMIN";
-      const UInt16 BOOTSIGNATURE = 0xaa55;
+      public const int SECTOR_BLOCKSIZE = 512;
+      public const string SIGNATURE = "DSKIMG";
+      public const string MAPFILEIDENTIFIER = "GARMIN";
+      public const UInt16 BOOTSIGNATURE = 0xaa55;
 
       /// <summary>
       /// 1, wenn die Daten XOR't sind
@@ -296,7 +296,7 @@ namespace GarminCore.DskImg {
       public void Read(BinaryReaderWriter br) {
          // 0x0
          /* Before you can look at an IMG file, you must XOR it with the XOR byte (the first byte in the file). Some maps are not XOR’d (the first byte is 0x00). */
-         XOR = br.ReadByte();
+         br.XOR = XOR = br.ReadByte();
 
          // 0x01
          br.ReadBytes(Unknown_x01);

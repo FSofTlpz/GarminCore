@@ -629,64 +629,64 @@ namespace GarminCore.Files {
          /// <summary>
          /// nördliche Begrenzung (vermutlich in 2^32/360° = 4294967296/360)
          /// </summary>
-         Int32 _North;
+         public Int32 north { get; private set; }
          /// <summary>
          /// nördliche Begrenzung
          /// </summary>
          public double North {
             get {
-               return _North * DEGREE_FACTOR;
+               return north * DEGREE_FACTOR;
             }
             set {
-               _North = (int)(Math.Round(value / DEGREE_FACTOR));
+               north = (int)(Math.Round(value / DEGREE_FACTOR));
             }
          }
 
          /// <summary>
          /// östliche Begrenzung (vermutlich in 2^32/360° = 4294967296/360)
          /// </summary>
-         Int32 _East;
+         public Int32 east { get; private set; }
          /// <summary>
          /// östliche Begrenzung
          /// </summary>
          public double East {
             get {
-               return _East * DEGREE_FACTOR;
+               return east * DEGREE_FACTOR;
             }
             set {
-               _East = (int)(Math.Round(value / DEGREE_FACTOR));
+               east = (int)(Math.Round(value / DEGREE_FACTOR));
             }
          }
 
          /// <summary>
          /// südiche Begrenzung (vermutlich in 2^32/360° = 4294967296/360)
          /// </summary>
-         Int32 _South;
+         public Int32 south { get; private set; }
          /// <summary>
          /// südiche Begrenzung
          /// </summary>
          public double South {
             get {
-               return _South * DEGREE_FACTOR;
+               return south * DEGREE_FACTOR;
             }
             set {
-               _South = (int)(Math.Round(value / DEGREE_FACTOR));
+               south = (int)(Math.Round(value / DEGREE_FACTOR));
             }
          }
 
          /// <summary>
          /// westliche Begrenzung (vermutlich in 2^32/360° = 4294967296/360)
          /// </summary>
-         Int32 _West;
+         public Int32 west { get; private set; }
          /// <summary>
          /// westliche Begrenzung
          /// </summary>
          public double West {
             get {
-               return _West * DEGREE_FACTOR;
+               return west * DEGREE_FACTOR;
             }
             set {
-               _West = (int)(Math.Round(value / DEGREE_FACTOR));
+               west = (int)(Math.Round(value / DEGREE_FACTOR));
             }
          }
 
@@ -712,10 +712,10 @@ namespace GarminCore.Files {
          public void ReadData(BinaryReaderWriter br) {
             Mapnumber = br.ReadUInt32();
             ParentMapnumber = br.ReadUInt32();
-            _North = br.ReadInt32();
-            _East = br.ReadInt32();
-            _South = br.ReadInt32();
-            _West = br.ReadInt32();
+            north = br.ReadInt32();
+            east = br.ReadInt32();
+            south = br.ReadInt32();
+            west = br.ReadInt32();
             Description = br.ReadString();
          }
 
@@ -733,10 +733,10 @@ namespace GarminCore.Files {
             blh.Write(wr);
             wr.Write(Mapnumber);
             wr.Write(ParentMapnumber);
-            wr.Write(_North);
-            wr.Write(_East);
-            wr.Write(_South);
-            wr.Write(_West);
+            wr.Write(north);
+            wr.Write(east);
+            wr.Write(south);
+            wr.Write(west);
             wr.WriteString(Description);
          }
 
@@ -1059,8 +1059,19 @@ namespace GarminCore.Files {
       public List<TileMap> Tilemap;
       public PseudoCRC Crc { get; private set; }
 
+      /// <summary>
+      /// liefert nach dem Einlesen die Reihenfolge der Blöcke
+      /// </summary>
+      public List<BlockHeader.Typ> BlockHeaderTypList { get; private set; }
+      /// <summary>
+      /// liefert nach dem Einlesen die Länge der Blöcke
+      /// </summary>
+      public List<int> BlockLength { get; private set; }
+
 
       public File_TDB() {
+         BlockHeaderTypList = new List<BlockHeader.Typ>();
+         BlockLength = new List<int>();
          Head = new Header(new BlockHeader(BlockHeader.Typ.Header, 0));
          Copyright = new SegmentedCopyright(new BlockHeader(BlockHeader.Typ.Copyright, 0));
          Overviewmap = new OverviewMap(new BlockHeader(BlockHeader.Typ.Overviewmap, 0));
@@ -1076,15 +1087,21 @@ namespace GarminCore.Files {
       public void Read(BinaryReaderWriter br) {
          BlockHeader blh = new BlockHeader();
          Tilemap.Clear();
+         BlockHeaderTypList.Clear();
 
+         br.Seek(0);
          blh.Read(br);
          if (blh.ID != BlockHeader.Typ.Header)
             throw new Exception("Keine TDB-Datei.");
          Head = new Header(blh);
          Head.ReadData(br);
+         BlockHeaderTypList.Add(blh.ID);
+         BlockLength.Add(blh.Length);
 
          do {
             blh.Read(br);
+            BlockHeaderTypList.Add(blh.ID);
+            BlockLength.Add(blh.Length);
             switch (blh.ID) {
                case BlockHeader.Typ.Copyright:
                   Copyright = new SegmentedCopyright(new BlockHeader(blh));

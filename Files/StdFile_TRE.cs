@@ -919,8 +919,8 @@ namespace GarminCore.Files {
 
          public OverviewObject2Byte() : this(0, 0) { }
 
-         public OverviewObject2Byte(byte typ, byte maxlevel) {
-            Type = typ;
+         public OverviewObject2Byte(byte type, byte maxlevel) {
+            Type = type;
             MaxLevel = maxlevel;
          }
 
@@ -957,9 +957,9 @@ namespace GarminCore.Files {
 
          public OverviewObject3Byte() : this(0, 0, 0) { }
 
-         public OverviewObject3Byte(byte typ, byte subtyp, byte maxlevel)
-            : base(typ, maxlevel) {
-            SubType = subtyp;
+         public OverviewObject3Byte(byte type, byte subtype, byte maxlevel)
+            : base(type, maxlevel) {
+            SubType = subtype;
          }
 
          public override void Read(BinaryReaderWriter br, object extdata = null) {
@@ -995,8 +995,8 @@ namespace GarminCore.Files {
 
          public OverviewObject4Byte() : this(0, 0, 0) { }
 
-         public OverviewObject4Byte(byte typ, byte subtyp, byte maxlevel, byte unknown = 0)
-            : base(typ, subtyp, maxlevel) {
+         public OverviewObject4Byte(byte type, byte subtype, byte maxlevel, byte unknown = 0)
+            : base(type, subtype, maxlevel) {
             Unknown = unknown;
          }
 
@@ -1091,15 +1091,15 @@ namespace GarminCore.Files {
       /// <summary>
       /// Datenbereich für die Tabelle der Maplevel (0x21)
       /// </summary>
-      DataBlock MaplevelBlock;
+      public DataBlock MaplevelBlock { get; private set; }
       /// <summary>
       /// Datenbereich für die Tabelle der Subdivisions (0x29)
       /// </summary>
-      DataBlock SubdivisionBlock;
+      public DataBlock SubdivisionBlock { get; private set; }
       /// <summary>
       /// Datenbereich für die Tabelle der Copyright-Texte (0x31)
       /// </summary>
-      DataBlockWithRecordsize CopyrightBlock;
+      public DataBlockWithRecordsize CopyrightBlock { get; private set; }
       public byte[] Unknown_x3B = { 0, 0, 0, 0 };
       /// <summary>
       /// Optionen für die POI-Anzeige (0x3F)
@@ -1158,17 +1158,17 @@ namespace GarminCore.Files {
       /// <summary>
       /// Datenbereich für die Tabelle der Polylines (0x4A)
       /// </summary>
-      DataBlockWithRecordsize LineOverviewBlock;
+      public DataBlockWithRecordsize LineOverviewBlock { get; private set; }
       public byte[] Unknown_x54 = { 0, 0, 0, 0 };
       /// <summary>
       /// Datenbereich für die Tabelle der Polygone (0x58)
       /// </summary>
-      DataBlockWithRecordsize AreaOverviewBlock;
+      public DataBlockWithRecordsize AreaOverviewBlock { get; private set; }
       public byte[] Unknown_x62 = { 0, 0, 0, 0 };
       /// <summary>
       /// Datenbereich für die Tabelle der Punkte (0x66)
       /// </summary>
-      DataBlockWithRecordsize PointOverviewBlock;
+      public DataBlockWithRecordsize PointOverviewBlock { get; private set; }
       public byte[] Unknown_x70 = { 0, 0, 0, 0 };
 
       // --------- Headerlänge > 116 Byte (zusätzlich Map-ID)
@@ -1193,15 +1193,15 @@ namespace GarminCore.Files {
       /// <summary>
       /// Anzahl der erweiterten Polylinientypen (0x94)
       /// </summary>
-      UInt16 ExtLineCount;
+      public UInt16 ExtLineCount { get; private set; }
       /// <summary>
       /// Anzahl der erweiterten Polygontypen (0x96)
       /// </summary>
-      UInt16 ExtAreaCount;
+      public UInt16 ExtAreaCount { get; private set; }
       /// <summary>
       /// Anzahl der erweiterten Punkttypen (0x98)
       /// </summary>
-      UInt16 ExtPointCount;
+      public UInt16 ExtPointCount { get; private set; }
 
       // --------- Headerlänge > 154 Byte ("Verschlüsselung" der Maplevel-Tabelle)
 
@@ -1213,14 +1213,14 @@ namespace GarminCore.Files {
       /// Verschlüsselungs-Key für die Mapleveltabelle
       /// </summary>
       public UInt32 MaplevelScrambleKey;
-      DataBlock UnknownBlock_xAE;
+      public DataBlock UnknownBlock_xAE { get; private set; }
       public byte[] Unknown_xB6 = new byte[0x6];
 
       // --------- Headerlänge > 188 Byte
 
-      DataBlock UnknownBlock_xBC;
+      public DataBlock UnknownBlock_xBC { get; private set; }
       public byte[] Unknown_xC4 = new byte[0x1F];
-      DataBlock UnknownBlock_xE3;
+      public DataBlock UnknownBlock_xE3 { get; private set; }
       public byte[] Unknown_xEB = null;
 
       #endregion
@@ -1246,6 +1246,12 @@ namespace GarminCore.Files {
       public SymbolicScaleDenominatorAndBits SymbolicScaleDenominatorAndBitsLevel;
 
       /// <summary>
+      /// liefert den Datenbereich für die Kartenbeschreibung
+      /// </summary>
+      /// <returns></returns>
+      public DataBlock MapDescriptionBlock { get; private set; }
+
+      /// <summary>
       /// Liste der Texte für die Kartenbeschreibung
       /// </summary>
       public List<string> MapDescriptionList;
@@ -1256,7 +1262,7 @@ namespace GarminCore.Files {
       /// <summary>
       /// Liste der Maplevel (Index 0 mit den geringsten Details, d.h. kleinster Maßstab)
       /// </summary>
-      List<MapLevel> MaplevelList;
+      public List<MapLevel> MaplevelList { get; private set; }
       /// <summary>
       /// Liste ALLER Subdivinfos (wird sequentiell in der TRE-Datei gespeichert; Verweise sind 1-basiert; max. ushort-Elemente)
       /// </summary>
@@ -1278,28 +1284,28 @@ namespace GarminCore.Files {
       /// <summary>
       /// Tabelle der in den zugehörigen Daten enthaltene Polylinientypen (.. 0xff)
       /// </summary>
-      List<OverviewObject2Byte> LineOverviewList;
+      public List<OverviewObject2Byte> LineOverviewList { get; private set; }
       /// <summary>
       /// Tabelle der in den zugehörigen Daten enthaltene Polygontypen (.. 0xff)
       /// </summary>
-      List<OverviewObject2Byte> AreaOverviewList;
+      public List<OverviewObject2Byte> AreaOverviewList { get; private set; }
       /// <summary>
       /// Tabelle der in den zugehörigen Daten enthaltene Punkttypen (.. 0xff)
       /// </summary>
-      List<OverviewObject3Byte> PointOverviewList;
+      public List<OverviewObject3Byte> PointOverviewList { get; private set; }
 
       /// <summary>
       /// Tabelle der in den zugehörigen Daten enthaltene erweiterten Polylinientypen (0x100 .. mit Subtyp)
       /// </summary>
-      List<OverviewObject4Byte> ExtLineOverviewList;
+      public List<OverviewObject4Byte> ExtLineOverviewList { get; private set; }
       /// <summary>
       /// Tabelle der in den zugehörigen Daten enthaltene erweiterten Polygontypen (0x100 .. mit Subtyp)
       /// </summary>
-      List<OverviewObject4Byte> ExtAreaOverviewList;
+      public List<OverviewObject4Byte> ExtAreaOverviewList { get; private set; }
       /// <summary>
       /// Tabelle der in den zugehörigen Daten enthaltene erweiterten Punkttypen (0x100 .. mit Subtyp)
       /// </summary>
-      List<OverviewObject4Byte> ExtPointOverviewList;
+      public List<OverviewObject4Byte> ExtPointOverviewList { get; private set; }
 
 
       public StdFile_TRE()
@@ -1346,7 +1352,7 @@ namespace GarminCore.Files {
       }
 
       public override void ReadHeader(BinaryReaderWriter br) {
-         base.ReadCommonHeader(br, Typ);
+         base.ReadCommonHeader(br, Type);
 
          North = br.Read3();
          East = br.Read3();
@@ -1426,13 +1432,17 @@ namespace GarminCore.Files {
             Filesections.AddSection((int)InternalFileSections.UnknownBlock_xBC, new DataBlock(UnknownBlock_xBC));
          if (UnknownBlock_xE3 != null)
             Filesections.AddSection((int)InternalFileSections.UnknownBlock_xE3, new DataBlock(UnknownBlock_xE3));
-         if (GapOffset > HeaderOffset + Headerlength) // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
-            Filesections.AddSection((int)InternalFileSections.DescriptionBlock, HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+
+         // GapOffset und DataOffset setzen
+         SetSpecialOffsetsFromSections((int)InternalFileSections.DescriptionBlock);
+
+         if (GapOffset > HeaderOffset + Headerlength) { // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
+            MapDescriptionBlock = new DataBlock(HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+            Filesections.AddSection((int)InternalFileSections.DescriptionBlock, MapDescriptionBlock);
+         }
 
          // Datenblöcke einlesen
          Filesections.ReadSections(br);
-
-         SetSpecialOffsetsFromSections((int)InternalFileSections.DescriptionBlock);
       }
 
       protected override void DecodeSections() {
@@ -1614,7 +1624,7 @@ namespace GarminCore.Files {
             for (int i = 0; i < SubdivInfoList.Count; i++)        // "Verkettung" setzen, d.h. die Anzahl der untergeordneten SubdivInfos
                if (SubdivInfoList[i] is SubdivInfo) {
                   SubdivInfo sdi = SubdivInfoList[i] as SubdivInfo;
-                  for (int j = sdi.FirstChildSubdivIdx1; ; j++)
+                  for (int j = sdi.FirstChildSubdivIdx1; j > 0; j++)
                      if (SubdivInfoList[j - 1].LastSubdiv) {      // 1-basierter Index
                         sdi.ChildSubdivInfos = (UInt16)(j - sdi.FirstChildSubdivIdx1 + 1);
                         break;
@@ -1764,7 +1774,7 @@ namespace GarminCore.Files {
                case 3:
                   List<OverviewObject3Byte> tmp3 = br.ReadArray<OverviewObject3Byte>(bl);
                   for (int i = 0; i < tmp3.Count; i++)
-                     ExtLineOverviewList.Add(new OverviewObject4Byte(tmp3[i].Type, tmp3[i].SubType, tmp3[i].MaxLevel, 0));
+                     ExtAreaOverviewList.Add(new OverviewObject4Byte(tmp3[i].Type, tmp3[i].SubType, tmp3[i].MaxLevel, 0));
                   break;
                case 4:
                   ExtAreaOverviewList = br.ReadArray<OverviewObject4Byte>(bl);
@@ -1780,7 +1790,7 @@ namespace GarminCore.Files {
                case 3:
                   List<OverviewObject3Byte> tmp3 = br.ReadArray<OverviewObject3Byte>(bl);
                   for (int i = 0; i < tmp3.Count; i++)
-                     ExtLineOverviewList.Add(new OverviewObject4Byte(tmp3[i].Type, tmp3[i].SubType, tmp3[i].MaxLevel, 0));
+                     ExtPointOverviewList.Add(new OverviewObject4Byte(tmp3[i].Type, tmp3[i].SubType, tmp3[i].MaxLevel, 0));
                   break;
                case 4:
                   ExtPointOverviewList = br.ReadArray<OverviewObject4Byte>(bl);

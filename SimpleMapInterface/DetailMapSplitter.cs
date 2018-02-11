@@ -658,13 +658,13 @@ namespace GarminCore.SimpleMapInterface {
                foreach (DetailMap.Point point in map.PointList) {
                   if (!point.IsExtendedType) {
                      StdFile_RGN.RawPointData pd = new StdFile_RGN.RawPointData();
-                     pd.Typ = point.MainType;
-                     pd.Subtyp = point.SubType;
+                     pd.Type = point.MainType;
+                     pd.Subtype = point.SubType;
                      point_datalength += pd.DataLength;
                   } else {
                      StdFile_RGN.ExtRawPointData pd = new StdFile_RGN.ExtRawPointData();
-                     pd.Typ = point.MainType;
-                     pd.Subtyp = point.SubType;
+                     pd.Type = point.MainType;
+                     pd.Subtype = point.SubType;
                      pd.LabelOffset = (uint)(string.IsNullOrEmpty(point.Label) ? 0 : 1);
                      // ev. noch pd.ExtraBytes setzen
                      extpoint_datalength += pd.DataLength;

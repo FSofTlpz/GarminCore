@@ -30,14 +30,14 @@ diesem Programm erhalten haben. Falls nicht, siehe
 <http://www.gnu.org/licenses/>. 
 */
 using System.Drawing;
-using System.IO;
 
 namespace GarminCore.Files.Typ {
 
    /// <summary>
    /// static-Methoden zum Lesen und Schreiben von Farben aus Streams
    /// </summary>
-   internal class BinaryColor {
+   public class BinaryColor {
+
       /// <summary>
       /// liest eine Farbtabelle ein
       /// </summary>
@@ -45,16 +45,19 @@ namespace GarminCore.Files.Typ {
       /// <param name="iCols">Anzahl der Farben in der Tabelle</param>
       /// <param name="bWithAlpha">Farben mit oder ohne Alphaanteil</param>
       /// <returns>Farbtabelle</returns>
-      public static Color[] ReadColorTable(BinaryReaderWriter br, int iCols, bool bWithAlpha) {
+      public static Color[] ReadColorTable(BinaryReaderWriter br, int iCols = 1, bool bWithAlpha = false) {
          Color[] col = new Color[iCols];
          if (!bWithAlpha) {
+
             for (int i = 0; i < iCols; i++) {
                byte blue = br.ReadByte();
                byte green = br.ReadByte();
                byte red = br.ReadByte();
                col[i] = Color.FromArgb(red, green, blue);
             }
+
          } else {
+
             // Länge der Farbtabelle ermitteln
             int len = iCols * 3 + iCols / 2;
             if (iCols % 2 == 1) len++;
@@ -73,45 +76,28 @@ namespace GarminCore.Files.Typ {
                alpha = (byte)((255 * alpha) / 15);       // 0x0..0xf --> 0x0..0xff
                col[i] = Color.FromArgb(~alpha & 0xff, red, green, blue);
             }
+
          }
          return col;
       }
-      public static Color[] ReadColorTable(BinaryReaderWriter br, int iCols) {
-         return ReadColorTable(br, iCols, false);
-      }
-      /// <summary>
-      /// liest eine einzelne Farbe (ohne Alpha) ein
-      /// </summary>
-      /// <param name="br"></param>
-      /// <returns></returns>
-      public static Color ReadColor(BinaryReaderWriter br) {
-         Color[] col = ReadColorTable(br, 1, false);
-         return col[0];
-      }
 
       /// <summary>
-      /// schreibt eine einzelne Farbe (ohne Alpha) in den Stream
+      /// liest eine einzelne Farbe ein
       /// </summary>
-      /// <param name="bw"></param>
-      /// <param name="col"></param>
-      public static void WriteColor(BinaryReaderWriter bw, Color col) {
-         WriteColorTable(bw, new Color[] { col });
+      /// <param name="br"></param>
+      /// <param name="bWithAlpha"></param>
+      /// <returns></returns>
+      public static Color ReadColor(BinaryReaderWriter br, bool bWithAlpha = false) {
+         return ReadColorTable(br, 1, false)[0];
       }
-      /// <summary>
-      /// schreibt eine Farbtabelle (ohne Alpha) in den Stream
-      /// </summary>
-      /// <param name="bw"></param>
-      /// <param name="coltable"></param>
-      public static void WriteColorTable(BinaryReaderWriter bw, Color[] coltable) {
-         WriteColorTable(bw, coltable, false);
-      }
+
       /// <summary>
       /// schreibt eine Farbtabelle in den Stream
       /// </summary>
       /// <param name="bw"></param>
       /// <param name="coltable"></param>
       /// <param name="bWithAlpha"></param>
-      public static void WriteColorTable(BinaryReaderWriter bw, Color[] coltable, bool bWithAlpha) {
+      public static void WriteColorTable(BinaryReaderWriter bw, Color[] coltable, bool bWithAlpha = false) {
          if (!bWithAlpha) {
             for (int i = 0; i < coltable.Length; i++) {
                bw.Write(coltable[i].B);
@@ -159,6 +145,15 @@ namespace GarminCore.Files.Typ {
             //}
             bw.Write(colortable);
          }
+      }
+
+      /// <summary>
+      /// schreibt eine einzelne Farbe (ohne Alpha) in den Stream
+      /// </summary>
+      /// <param name="bw"></param>
+      /// <param name="col"></param>
+      public static void WriteColor(BinaryReaderWriter bw, Color col) {
+         WriteColorTable(bw, new Color[] { col });
       }
 
    }

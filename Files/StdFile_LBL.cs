@@ -53,7 +53,7 @@ namespace GarminCore.Files {
       /// </summary>
       public byte DataOffsetMultiplier { get; private set; }
       /// <summary>
-      /// Art der Text-Codierung (i.A. 0x09) (0x2E)
+      /// Art der Text-Codierung (i.A. 0x09) (0x1E)
       /// </summary>
       public byte EncodingType;
       /// <summary>
@@ -485,13 +485,13 @@ namespace GarminCore.Files {
          /// </summary>
          UInt32 _data;
          SpecPropFlags _SpecPropFlags;
-         POIFlags _localPropMask;
-         byte[] _streetnumber_encoded;
+         public POIFlags _internalPropMask { get; private set; }
+         public byte[] _streetnumber_encoded { get; private set; }
          UInt32 _streetnumberoffset;
          UInt32 _streetoffset;
          UInt16 _cityindex;
          UInt16 _zipindex;
-         byte[] _phonenumber_encoded;
+         public byte[] _phonenumber_encoded { get; private set; }
          UInt32 _phonenumberoffset;
          UInt32 _ExitOffset;
          UInt16 _ExitHighwayIndex;
@@ -499,19 +499,19 @@ namespace GarminCore.Files {
 
 
          /// <summary>
-         /// Offset für die Namensliste (3 Byte, aber nur Bit 0..21, d.h. max. 0x3FFFFF)
+         /// Offset für die Namensliste (3 Byte, aber nur Bit 0..22, d.h. max. 0x7FFFFF)
          /// </summary>
          public UInt32 TextOffset {
             get {
-               return _data & 0x3FFFFF;         // Bit 0..21
+               return _data & 0x7FFFFF;         // Bit 0..22
             }
             set {
-               _data = (_data & 0xC00000) | (value & 0x3FFFFF);
+               _data = (_data & 0x800000) | (value & 0x7FFFFF);
             }
          }
 
          /// <summary>
-         /// ein Hausnummernoffset wird gesetz oder geliefert (<see cref="StreetNumber"/> ist dann ungültig)
+         /// ein Hausnummernoffset wird gesetzt oder geliefert (<see cref="StreetNumber"/> ist dann ungültig)
          /// </summary>
          public UInt32 StreetNumberOffset {
             get {
@@ -530,7 +530,7 @@ namespace GarminCore.Files {
          }
 
          /// <summary>
-         /// eine intern codierte Hausnummer wird gesetz oder geliefert (<see cref="StreetNumberOffset"/> ist dann ungültig)
+         /// eine intern codierte Hausnummer wird gesetzt oder geliefert (<see cref="StreetNumberOffset"/> ist dann ungültig)
          /// </summary>
          public string StreetNumber {
             get {
@@ -569,7 +569,7 @@ namespace GarminCore.Files {
          }
 
          /// <summary>
-         /// ein Index für den Städtenamen wird gesetzt oder geliefert
+         /// ein Index für den Städtenamen wird gesetzt oder geliefert (1basiert ?)
          /// </summary>
          public UInt16 CityIndex {
             get {
@@ -590,7 +590,7 @@ namespace GarminCore.Files {
          }
 
          /// <summary>
-         /// ein Index für den Städtenamen wird gesetzt oder geliefert
+         /// ein Index für den Städtenamen wird gesetzt oder geliefert (1basiert ?)
          /// </summary>
          public UInt16 ZipIndex {
             get {
@@ -722,13 +722,13 @@ namespace GarminCore.Files {
          /// </summary>
          public bool StreetNumberIsSet {
             get {
-               return (_localPropMask & POIFlags.street_num) != 0;
+               return (_internalPropMask & POIFlags.street_num) != 0;
             }
             private set {
                if (value)
-                  _localPropMask |= POIFlags.street_num;
+                  _internalPropMask |= POIFlags.street_num;
                else
-                  _localPropMask &= ~POIFlags.street_num;
+                  _internalPropMask &= ~POIFlags.street_num;
             }
          }
          /// <summary>
@@ -736,13 +736,13 @@ namespace GarminCore.Files {
          /// </summary>
          public bool StreetIsSet {
             get {
-               return (_localPropMask & POIFlags.street) != 0;
+               return (_internalPropMask & POIFlags.street) != 0;
             }
             private set {
                if (value)
-                  _localPropMask |= POIFlags.street;
+                  _internalPropMask |= POIFlags.street;
                else
-                  _localPropMask &= ~POIFlags.street;
+                  _internalPropMask &= ~POIFlags.street;
             }
          }
          /// <summary>
@@ -750,13 +750,13 @@ namespace GarminCore.Files {
          /// </summary>
          public bool CityIsSet {
             get {
-               return (_localPropMask & POIFlags.city) != 0;
+               return (_internalPropMask & POIFlags.city) != 0;
             }
             private set {
                if (value)
-                  _localPropMask |= POIFlags.city;
+                  _internalPropMask |= POIFlags.city;
                else
-                  _localPropMask &= ~POIFlags.city;
+                  _internalPropMask &= ~POIFlags.city;
             }
          }
          /// <summary>
@@ -764,13 +764,13 @@ namespace GarminCore.Files {
          /// </summary>
          public bool ZipIsSet {
             get {
-               return (_localPropMask & POIFlags.zip) != 0;
+               return (_internalPropMask & POIFlags.zip) != 0;
             }
             private set {
                if (value)
-                  _localPropMask |= POIFlags.zip;
+                  _internalPropMask |= POIFlags.zip;
                else
-                  _localPropMask &= ~POIFlags.zip;
+                  _internalPropMask &= ~POIFlags.zip;
             }
          }
          /// <summary>
@@ -778,13 +778,13 @@ namespace GarminCore.Files {
          /// </summary>
          public bool PhoneIsSet {
             get {
-               return (_localPropMask & POIFlags.phone) != 0;
+               return (_internalPropMask & POIFlags.phone) != 0;
             }
             private set {
                if (value)
-                  _localPropMask |= POIFlags.phone;
+                  _internalPropMask |= POIFlags.phone;
                else
-                  _localPropMask &= ~POIFlags.phone;
+                  _internalPropMask &= ~POIFlags.phone;
             }
          }
          /// <summary>
@@ -792,13 +792,13 @@ namespace GarminCore.Files {
          /// </summary>
          public bool ExitIsSet {
             get {
-               return (_localPropMask & POIFlags.exit) != 0;
+               return (_internalPropMask & POIFlags.exit) != 0;
             }
             private set {
                if (value)
-                  _localPropMask |= POIFlags.exit;
+                  _internalPropMask |= POIFlags.exit;
                else
-                  _localPropMask &= ~POIFlags.exit;
+                  _internalPropMask &= ~POIFlags.exit;
             }
          }
          /// <summary>
@@ -820,13 +820,27 @@ namespace GarminCore.Files {
          /// </summary>
          public bool TidePredictionIsSet {
             get {
-               return (_localPropMask & POIFlags.tide_prediction) != 0;
+               return (_internalPropMask & POIFlags.tide_prediction) != 0;
             }
             private set {
                if (value)
-                  _localPropMask |= POIFlags.tide_prediction;
+                  _internalPropMask |= POIFlags.tide_prediction;
                else
-                  _localPropMask &= ~POIFlags.tide_prediction;
+                  _internalPropMask &= ~POIFlags.tide_prediction;
+            }
+         }
+         /// <summary>
+         /// Ist ... gesetzt?
+         /// </summary>
+         public bool UnknownIsSet {
+            get {
+               return (_internalPropMask & POIFlags.unknown) != 0;
+            }
+            private set {
+               if (value)
+                  _internalPropMask |= POIFlags.unknown;
+               else
+                  _internalPropMask &= ~POIFlags.unknown;
             }
          }
          /// <summary>
@@ -920,7 +934,7 @@ namespace GarminCore.Files {
          /// </summary>
          public uint DataLength(POIFlags POIGlobalFlags) {
             int len = 3;
-            if (POIGlobalFlags != _localPropMask)
+            if (POIGlobalFlags != _internalPropMask)
                len += 1;
             if (StreetNumberIsSet)
                len += StreetNumberIsCoded ? _streetnumber_encoded.Length : 3;
@@ -942,9 +956,9 @@ namespace GarminCore.Files {
          }
 
          /// <summary>
-         /// Ex. eine eigene Flag-Maske?
+         /// Ex. eine eigene Flag-Maske? (Bit 23 von <see cref="TextOffset"/>)
          /// </summary>
-         bool HasLocalProperties {
+         public bool HasLocalProperties {
             get {
                return (_data & 0x800000) != 0;     // Bit 23
             }
@@ -1004,7 +1018,7 @@ namespace GarminCore.Files {
 
          public PoiRecord() {
             _data = 0;
-            _localPropMask = 0;
+            _internalPropMask = 0;
             _SpecPropFlags = 0;
          }
 
@@ -1021,9 +1035,9 @@ namespace GarminCore.Files {
             _data = br.Read3U();
 
             if (HasLocalProperties)
-               _localPropMask = DecompressedPOIFlags(POIGlobalFlags, (POIFlags)br.ReadByte());
+               _internalPropMask = DecompressedPOIFlags(POIGlobalFlags, (POIFlags)br.ReadByte());
             else
-               _localPropMask = (POIFlags)POIGlobalFlags;
+               _internalPropMask = POIGlobalFlags;
 
             if (StreetNumberIsSet) {
                byte v = br.ReadByte();
@@ -1075,6 +1089,14 @@ namespace GarminCore.Files {
             if (ExitIsSet) {
                _ExitOffset = br.Read3U();
 
+               /*    3 Byte
+                *    Bit 0 .. 21 für Index
+                *    Bit 22      OvernightParking
+                *    Bit 23      facilities defined
+                *    n Bytes     highwayIndex (n abh. von der max. Anzahl der Highways)
+                *    n Bytes     exitFacilityIndex (n abh. von der max. Anzahl der ExitFacility)
+                */
+
                if (UseShortExitHighwayIndex)
                   _ExitHighwayIndex = br.ReadByte();
                else
@@ -1088,10 +1110,10 @@ namespace GarminCore.Files {
                }
             }
 
-            if ((_localPropMask & POIFlags.tide_prediction) != 0)
+            if ((_internalPropMask & POIFlags.tide_prediction) != 0)
                throw new Exception("Die Behandlung von Bit 6 in der POI-Maske ist noch nicht implementiert.");
 
-            if ((_localPropMask & POIFlags.unknown) != 0)
+            if ((_internalPropMask & POIFlags.unknown) != 0)
                throw new Exception("Die Behandlung von Bit 7 in der POI-Maske ist noch nicht implementiert.");
 
          }
@@ -1106,8 +1128,8 @@ namespace GarminCore.Files {
 
             bw.Write3(_data);
 
-            if (_localPropMask != POIGlobalFlags)
-               bw.Write(CompressedPOIFlags(POIGlobalFlags, _localPropMask));
+            if (_internalPropMask != POIGlobalFlags)
+               bw.Write(CompressedPOIFlags(POIGlobalFlags, _internalPropMask));
 
             if (StreetNumberIsSet)
                if (StreetNumberIsCoded)
@@ -1157,10 +1179,10 @@ namespace GarminCore.Files {
 
             }
 
-            if ((_localPropMask & POIFlags.tide_prediction) != 0)
+            if ((_internalPropMask & POIFlags.tide_prediction) != 0)
                throw new Exception("Die Behandlung von Bit 6 in der POI-Maske ist noch nicht implementiert.");
 
-            if ((_localPropMask & POIFlags.unknown) != 0)
+            if ((_internalPropMask & POIFlags.unknown) != 0)
                throw new Exception("Die Behandlung von Bit 7 in der POI-Maske ist noch nicht implementiert.");
 
          }
@@ -1468,7 +1490,7 @@ namespace GarminCore.Files {
          /// </summary>
          public byte POIIndex {
             get {
-               return (byte)(IsPOI ? 0 : (_Data >> 16) & 0xff);
+               return (byte)(IsPOI ? (_Data >> 16) & 0xff : 0);
             }
             set {
                _Data = ((UInt32)value << 16) | (_Data & 0xffff);
@@ -1481,7 +1503,7 @@ namespace GarminCore.Files {
          /// </summary>
          public UInt16 SubdivisionNumber {
             get {
-               return (UInt16)(IsPOI ? 0 : _Data & 0xffff);
+               return (UInt16)(IsPOI ? _Data & 0xffff : 0);
             }
             set {
                _Data = (_Data & 0xff0000) | (UInt32)value;
@@ -2008,9 +2030,20 @@ namespace GarminCore.Files {
       /// </summary>
       public string SortDescriptor;
 
+      Encoding cleartext;
+
+      /// <summary>
+      /// liefert den PostHeader-Datenbereich
+      /// </summary>
+      /// <returns></returns>
+      public DataBlock PostHeaderDataBlock { get; private set; }
+
 
       public StdFile_LBL()
          : base("LBL") {
+
+         cleartext = Encoding.GetEncoding(1252);
+
          Headerlength = 170; // 196
          Headerlength = 196;
 
@@ -2105,10 +2138,20 @@ namespace GarminCore.Files {
       /// liefert den Text zum Offset
       /// </summary>
       /// <param name="offset"></param>
+      /// <param name="clear">wenn true, dann Steuerzeichen als '.'</param>
       /// <returns>null, wenn der Offset ungültig ist</returns>
-      public string GetText(uint offset) {
-         return TextList.Text((int)offset);
+      public string GetText(uint offset, bool clear = false) {
+         if (!clear)
+            return TextList.Text((int)offset);
+         else {
+            byte[] bytes = cleartext.GetBytes(TextList.Text((int)offset));
+            for (int i = 0; i < bytes.Length; i++)
+               if (bytes[i] < 0x20)
+                  bytes[i] = 0x2E;
+            return cleartext.GetString(bytes);
+         }
       }
+
       /// <summary>
       /// liefert den Offset zum Text (und fügt den Text bei Bedarf ein) oder 0, wenn der Textspeicher voll ist
       /// <para>Wenn der Textspeicher voll ist muss mit einem größeren OffsetMultiplier gearbeitet werden.</para>
@@ -2121,7 +2164,7 @@ namespace GarminCore.Files {
       }
 
       public override void ReadHeader(BinaryReaderWriter br) {
-         base.ReadCommonHeader(br, Typ);
+         base.ReadCommonHeader(br, Type);
 
          TextBlock = new DataBlock(br);
          DataOffsetMultiplier = br.ReadByte();
@@ -2325,7 +2368,7 @@ namespace GarminCore.Files {
          Filesections.AddSection((int)InternalFileSections.ZipBlock, new DataBlockWithRecordsize(ZipBlock, (ushort)ZipRecord.DataLength));
          Filesections.AddSection((int)InternalFileSections.HighwayWithExitBlock, new DataBlockWithRecordsize(HighwayWithExitBlock, (ushort)HighwayWithExitRecord.DataLength));
          Filesections.AddSection((int)InternalFileSections.ExitBlock, new DataBlockWithRecordsize(ExitBlock, (ushort)ExitRecord.DataLength));
-         Filesections.AddSection((int)InternalFileSections.HighwayExitBlock, new DataBlockWithRecordsize(HighwayExitBlock, (ushort)3)); // ????? variabel?
+         Filesections.AddSection((int)InternalFileSections.HighwayExitBlock, new DataBlockWithRecordsize(HighwayExitBlock, (ushort)HighwayExitBlock.Recordsize)); // ????? variabel?
          Filesections.AddSection((int)InternalFileSections.SortDescriptorDefBlock, new DataBlock(SortDescriptorDefBlock));
          Filesections.AddSection((int)InternalFileSections.Lbl13Block, new DataBlockWithRecordsize(Lbl13Block));
          Filesections.AddSection((int)InternalFileSections.TidePredictionBlock, new DataBlockWithRecordsize(TidePredictionBlock));
@@ -2353,8 +2396,14 @@ namespace GarminCore.Files {
          Filesections.AddSection((int)InternalFileSections.UnknownBlock_0x1E6, new DataBlock(UnknownBlock_0x1E6));
          Filesections.AddSection((int)InternalFileSections.UnknownBlock_0x1F2, new DataBlock(UnknownBlock_0x1F2));
          Filesections.AddSection((int)InternalFileSections.UnknownBlock_0x200, new DataBlock(UnknownBlock_0x200));
-         if (GapOffset > HeaderOffset + Headerlength)
-            Filesections.AddSection((int)InternalFileSections.PostHeaderData, HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+
+         // GapOffset und DataOffset setzen
+         SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
+
+         if (GapOffset > HeaderOffset + Headerlength) { // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
+            PostHeaderDataBlock = new DataBlock(HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+            Filesections.AddSection((int)InternalFileSections.PostHeaderData, PostHeaderDataBlock);
+         }
 
          // Datenblöcke einlesen
          Filesections.ReadSections(br);

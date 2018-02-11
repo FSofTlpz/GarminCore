@@ -487,7 +487,7 @@ namespace GarminCore.SimpleMapInterface {
          /// <param name="center"></param>
          /// <param name="coordbits"></param>
          public Point(StdFile_RGN.RawPointData pt, MapUnitPoint center, int coordbits) :
-            this((pt.Typ << 8) | pt.Subtyp,
+            this((pt.Type << 8) | pt.Subtype,
                  new MapUnitPoint(center.Longitude + Coord.RawUnits2MapUnits(pt.RawDeltaLongitude, coordbits),
                                   center.Latitude + Coord.RawUnits2MapUnits(pt.RawDeltaLatitude, coordbits))) { }
 
@@ -498,7 +498,7 @@ namespace GarminCore.SimpleMapInterface {
          /// <param name="center"></param>
          /// <param name="coordbits"></param>
          public Point(StdFile_RGN.ExtRawPointData pt, MapUnitPoint center, int coordbits) :
-            this(((0x100 | pt.Typ) << 8) | pt.Subtyp,
+            this(((0x100 | pt.Type) << 8) | pt.Subtype,
                  new MapUnitPoint(center.Longitude + Coord.RawUnits2MapUnits(pt.RawDeltaLongitude, coordbits),
                                   center.Latitude + Coord.RawUnits2MapUnits(pt.RawDeltaLatitude, coordbits))) { }
 
@@ -658,9 +658,10 @@ namespace GarminCore.SimpleMapInterface {
          /// <param name="iLatitudeCenter">Breite des Mittelpunkts der Subdiv in MapUnits</param>
          /// <param name="coordbits">Bits je Koordinate</param>
          public Poly(StdFile_RGN.RawPolyData poly, MapUnitPoint subdiv_center, int coordbits) :
-            this((poly.Typ << 8) | poly.Subtyp, poly.DirectionIndicator, poly.IsPolygon) {
+            this((poly.Type << 8) | poly.Subtype, poly.DirectionIndicator, poly.IsPolygon) {
             List<MapUnitPoint> pt = poly.GetMapUnitPoints(coordbits, subdiv_center);
-            Debug.WriteLineIf(pt.Count < 3, string.Format("Fehler: Polygon {0} hat nur {1} Punkte", poly, pt.Count));
+            Debug.WriteLineIf(poly.IsPolygon ? pt.Count < 3 : pt.Count < 2,
+                              string.Format("error: polygon/polyline {0} with only {1} points", poly, pt.Count));
             for (int j = 0; j < pt.Count; j++)
                AddPoint(pt[j].LongitudeDegree,
                         pt[j].LatitudeDegree,
@@ -676,7 +677,7 @@ namespace GarminCore.SimpleMapInterface {
          /// <param name="coordbits">Bits je Koordinate</param>
          /// <param name="isarea">true für Fläche, false für Linie</param>
          public Poly(StdFile_RGN.ExtRawPolyData poly, MapUnitPoint subdiv_center, int coordbits, bool isarea) :
-            this(((0x100 | poly.Typ) << 8) | poly.Subtyp, false, isarea) {
+            this(((0x100 | poly.Type) << 8) | poly.Subtype, false, isarea) {
             List<MapUnitPoint> pt = poly.GetMapUnitPoints(coordbits, subdiv_center);
             Debug.WriteLineIf(pt.Count < 3, string.Format("Fehler: Polygon {0} hat nur {1} Punkte", poly, pt.Count));
             Debug.WriteLineIf(pt.Count < 3, string.Format("Fehler: Polygon {0} hat nur {1} Punkte", poly, pt.Count));
@@ -773,7 +774,7 @@ namespace GarminCore.SimpleMapInterface {
          /// <param name="boundcalculate">wenn true, wird <see cref="Bound"/> mit <see cref="CalculateBound"/>() neu berechnet</param>
          /// <param name="pos"></param>
          public void AddPoint(MapUnitPoint pt, bool extrabit = false, bool boundcalculate = true, int pos = int.MaxValue) {
-            AddPoint(new PolyPoint(pt, extrabit), boundcalculate,pos);
+            AddPoint(new PolyPoint(pt, extrabit), boundcalculate, pos);
          }
 
          /// <summary>
@@ -857,7 +858,7 @@ namespace GarminCore.SimpleMapInterface {
             polydat.IsPolygon = isarea;
             polydat.DirectionIndicator = DirectionIndicator;
             polydat.LabelInNET = false;
-            polydat.Typ = MainType;
+            polydat.Type = MainType;
 
             List<MapUnitPoint> pt = new List<MapUnitPoint>();
             for (int i = 0; i < PointCount; i++) {
@@ -885,8 +886,8 @@ namespace GarminCore.SimpleMapInterface {
                throw new Exception("Funktion ist nur für erweiterte Objekte verwendbar.");
 
             StdFile_RGN.ExtRawPolyData polydat = new StdFile_RGN.ExtRawPolyData();
-            polydat.Typ = MainType;
-            polydat.Subtyp = SubType;
+            polydat.Type = MainType;
+            polydat.Subtype = SubType;
 
             List<MapUnitPoint> pt = new List<MapUnitPoint>();
             for (int i = 0; i < PointCount; i++) {

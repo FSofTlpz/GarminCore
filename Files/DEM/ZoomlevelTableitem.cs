@@ -125,55 +125,55 @@ namespace GarminCore.Files.DEM {
       /// </summary>
       public uint PtrHeightdata { get; set; }
 
-      int _West = 0;
+      public int west { get; private set; }
       /// <summary>
       /// westliche Grenze der Kachel
       /// </summary>
       public double West {
          get {
-            return Unit2Degree(_West);
+            return Unit2Degree(west);
          }
          set {
-            _West = Degree2Unit(value);
+            west = Degree2Unit(value);
          }
       }
 
-      int _North = 0;
+      public int north { get; private set; }
       /// <summary>
       /// nördliche Grenze der Kachel
       /// </summary>
       public double North {
          get {
-            return Unit2Degree(_North);
+            return Unit2Degree(north);
          }
          set {
-            _North = Degree2Unit(value);
+            north = Degree2Unit(value);
          }
       }
 
-      int _PointDistanceHoriz = 0;
+      public int pointDistanceHoriz { get; private set; }
       /// <summary>
       /// waagerechter Abstand zwischen den Datenpunkten
       /// </summary>
       public double PointDistanceHoriz {
          get {
-            return Unit2Degree(_PointDistanceHoriz);
+            return Unit2Degree(pointDistanceHoriz);
          }
          set {
-            _PointDistanceHoriz = Degree2Unit(value);
+            pointDistanceHoriz = Degree2Unit(value);
          }
       }
 
-      int _PointDistanceVert = 0;
+      public int pointDistanceVert { get; private set; }
       /// <summary>
       /// senkrechter Abstand zwischen den Datenpunkten
       /// </summary>
       public double PointDistanceVert {
          get {
-            return Unit2Degree(_PointDistanceVert);
+            return Unit2Degree(pointDistanceVert);
          }
          set {
-            _PointDistanceVert = Degree2Unit(value);
+            pointDistanceVert = Degree2Unit(value);
          }
       }
 
@@ -228,10 +228,10 @@ namespace GarminCore.Files.DEM {
             short tmp = br.ReadInt16();   // SubtileTableitemSize: ergibt sich schon aus Structure
             PtrSubtileTable = br.ReadUInt32();
             PtrHeightdata = br.ReadUInt32();
-            _West = br.ReadInt32();
-            _North = br.ReadInt32();
-            _PointDistanceVert = br.ReadInt32();
-            _PointDistanceHoriz = br.ReadInt32();
+            west = br.ReadInt32();
+            north = br.ReadInt32();
+            pointDistanceVert = br.ReadInt32();
+            pointDistanceHoriz = br.ReadInt32();
             MinHeight = br.ReadInt16();
             MaxHeight = br.ReadUInt16();
          }
@@ -251,10 +251,10 @@ namespace GarminCore.Files.DEM {
          w.Write(SubtileTableitemSize);
          w.Write(PtrSubtileTable);
          w.Write(PtrHeightdata);
-         w.Write(_West);
-         w.Write(_North);
-         w.Write(_PointDistanceVert);
-         w.Write(_PointDistanceHoriz);
+         w.Write(west);
+         w.Write(north);
+         w.Write(pointDistanceVert);
+         w.Write(pointDistanceHoriz);
          w.Write(MinHeight);
          w.Write(MaxHeight);
       }

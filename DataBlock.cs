@@ -111,7 +111,7 @@ namespace GarminCore {
       }
 
       public override string ToString() {
-         return string.Format("Block=[Offset 0x{0:x}, Länge 0x{1:x}]", Offset, Length);
+         return string.Format("Block=[Offset 0x{0:X}, Length 0x{1:X}]", Offset, Length);
       }
    }
 

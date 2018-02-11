@@ -30,9 +30,7 @@ diesem Programm erhalten haben. Falls nicht, siehe
 <http://www.gnu.org/licenses/>. 
 */
 using System;
-using System.Diagnostics;
 using System.Drawing;
-using System.IO;
 using System.Text;
 
 namespace GarminCore.Files.Typ {
@@ -59,7 +57,7 @@ namespace GarminCore.Files.Typ {
          NoBorder_Day1_Night1 = 7
       }
 
-      protected byte Options2;
+      public byte Options2 { get; private set; }
 
       /// <summary>
       /// Bitmaphöhe (Bit 3..7)
@@ -68,6 +66,7 @@ namespace GarminCore.Files.Typ {
          get { return (uint)(Options >> 3); }
          set { Options = (byte)((value << 3) | ((uint)Options & 0x7)); }
       }
+      
       /// <summary>
       /// Linientyp (Bit 0,1,2)
       /// </summary>
@@ -153,6 +152,7 @@ namespace GarminCore.Files.Typ {
             }
          }
       }
+      
       /// <summary>
       /// mit Text (Bit 0)
       /// </summary>
@@ -164,6 +164,7 @@ namespace GarminCore.Files.Typ {
             Options = SetBit(Options2, 0, value);
          }
       }
+      
       /// <summary>
       /// mit Textrotation (Bit 1)
       /// </summary>
@@ -178,6 +179,7 @@ namespace GarminCore.Files.Typ {
                WithExtendedOptions = true;
          }
       }
+ 
       /// <summary>
       /// mit zusätzlichen Farben oder Fonteigenschaft (Bit 2)
       /// </summary>
@@ -194,6 +196,7 @@ namespace GarminCore.Files.Typ {
       /// Linienbreite (ohne Berücksichtigung Rand; vermutlich einschließlich 2*Randbreite max. 255)
       /// </summary>
       public uint InnerWidth { get; private set; }
+ 
       /// <summary>
       /// Randbreite (für 1 Rand; vermutlich Linienbreite + 2*Randbreite max. 255)
       /// </summary>
@@ -203,6 +206,7 @@ namespace GarminCore.Files.Typ {
       /// Breite der Linie (konstant)
       /// </summary>
       public override uint Width { get { return 32; } protected set { } }
+ 
       /// <summary>
       /// Höhe (Dicke) der Linie
       /// </summary>
@@ -235,8 +239,8 @@ namespace GarminCore.Files.Typ {
 
       public Polyline(uint iTyp, uint iSubtyp)
          : base() {
-         Typ = iTyp;
-         Subtyp = iSubtyp;
+         Type = iTyp;
+         Subtype = iSubtyp;
          Options2 = 0;
          InnerWidth = 1;
          BorderWidth = 0;
@@ -303,7 +307,7 @@ namespace GarminCore.Files.Typ {
 
             if (WithExtendedOptions) {
                ExtOptions = br.ReadByte();
-               switch (FontColTyp) {
+               switch (FontColType) {
                   case FontColours.Day:
                      colFontColour[0] = BinaryColor.ReadColor(br);
                      break;
@@ -317,7 +321,7 @@ namespace GarminCore.Files.Typ {
             }
 
          } catch (Exception ex) {
-            throw new Exception(string.Format("Fehler beim Lesen der Linie 0x{0:x} 0x{1:x}: {2}", Typ, Subtyp, ex.Message));
+            throw new Exception(string.Format("Fehler beim Lesen der Linie 0x{0:x} 0x{1:x}: {2}", Type, Subtype, ex.Message));
          }
       }
 
@@ -485,6 +489,7 @@ namespace GarminCore.Files.Typ {
                break;
          }
       }
+ 
       /// <summary>
       /// setzt die Werte für eine Darstellung ohne Bitmap
       /// </summary>
@@ -519,13 +524,16 @@ namespace GarminCore.Files.Typ {
          NightColor1 = night1;
          NightColor2 = night2;
       }
+
       public void SetWidthAndColors(PolylineType typ, uint innerwidth, uint borderwidth,
                                     Color day1, Color day2) {
          SetWidthAndColors(typ, innerwidth, borderwidth, day1, day2, NightColor1, NightColor2);
       }
+
       public void SetWidthAndColors(PolylineType typ, uint innerwidth, uint borderwidth) {
          SetWidthAndColors(typ, innerwidth, borderwidth, DayColor1, DayColor2, NightColor1, NightColor2);
       }
+
       public void SetWidthAndColors(PolylineType typ, uint innerwidth) {
          SetWidthAndColors(typ, innerwidth, BorderWidth, DayColor1, DayColor2, NightColor1, NightColor2);
       }
@@ -587,7 +595,7 @@ namespace GarminCore.Files.Typ {
 
          if (WithExtendedOptions) {    // es folgen weitere (max. 2) Farben
             bw.Write(ExtOptions);
-            switch (FontColTyp) {
+            switch (FontColType) {
                case FontColours.Day:
                   BinaryColor.WriteColor(bw, colFontColour[0]);
                   break;
@@ -611,17 +619,17 @@ namespace GarminCore.Files.Typ {
       public Polyline GetCopy(uint iTyp, uint iSubtyp) {
          Polyline n = (Polyline)MemberwiseClone();
          CopyExtData(n);
-         n.Typ = iTyp;
-         n.Subtyp = iSubtyp;
+         n.Type = iTyp;
+         n.Subtype = iSubtyp;
          return n;
       }
 
       public override string ToString() {
          StringBuilder sb = new StringBuilder();
          sb.Append("Polyline=[Typ=0x");
-         sb.Append(Typ.ToString("x2"));
-         if (Typ >= 0x100)
-            sb.Append(Subtyp.ToString("x2"));
+         sb.Append(Type.ToString("x2"));
+         if (Type >= 0x100)
+            sb.Append(Subtype.ToString("x2"));
          sb.Append(" " + Polylinetype.ToString() + " ");
          switch (Polylinetype) {
             case PolylineType.Day2:
@@ -659,11 +667,11 @@ namespace GarminCore.Files.Typ {
             if (BorderWidth > 0)
                sb.Append(" Border=" + BorderWidth.ToString());
          }
-         if (FontTyp != Fontdata.Default)
-            sb.Append(" Fonttyp=[" + FontTyp.ToString() + "]");
-         if (FontColTyp != FontColours.No) {
+         if (FontType != Fontdata.Default)
+            sb.Append(" Fonttyp=[" + FontType.ToString() + "]");
+         if (FontColType != FontColours.No) {
             sb.Append(" CustomColours=[");
-            switch (FontColTyp) {
+            switch (FontColType) {
                case FontColours.Day:
                   sb.Append("Day=" + colFontColour[0].ToString());
                   break;

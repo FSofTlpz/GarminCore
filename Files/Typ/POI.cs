@@ -30,9 +30,7 @@ diesem Programm erhalten haben. Falls nicht, siehe
 <http://www.gnu.org/licenses/>. 
 */
 using System;
-using System.Diagnostics;
 using System.Drawing;
-using System.IO;
 using System.Text;
 
 namespace GarminCore.Files.Typ {
@@ -66,7 +64,7 @@ namespace GarminCore.Files.Typ {
       /// <summary>
       /// das (ev. vorhandene) Nacht-Bitmap hat eigene Daten (Bit 0)
       /// </summary>
-      protected bool NightXpmHasData {
+      public bool NightXpmHasData {
          get {
             return BitIsSet(Options, 0);
          }
@@ -78,7 +76,7 @@ namespace GarminCore.Files.Typ {
       /// <summary>
       /// mit Nacht-Bitmap (Bit 1)
       /// </summary>
-      protected bool WithNightXpm {
+      public bool WithNightXpm {
          get {
             return BitIsSet(Options, 1);
          }
@@ -136,6 +134,16 @@ namespace GarminCore.Files.Typ {
       }
 
       /// <summary>
+      /// Farbanzahl für das Bitmap
+      /// </summary>
+      public byte colsday { get; private set; }
+
+      /// <summary>
+      /// Farbanzahl für das Bitmap
+      /// </summary>
+      public byte colsnight { get; private set; }
+
+      /// <summary>
       /// immer true
       /// </summary>
       public override bool WithDayBitmap { get { return true; } }
@@ -180,8 +188,8 @@ namespace GarminCore.Files.Typ {
 
       public POI(uint iTyp, uint iSubtyp)
          : base() {
-         Typ = iTyp;
-         Subtyp = iSubtyp;
+         Type = iTyp;
+         Subtype = iSubtyp;
          NightXpmHasData = true;
          WithNightXpm = false;
          nonvirtual_WithString = false;
@@ -196,30 +204,29 @@ namespace GarminCore.Files.Typ {
          ColormodeDay = cm;
       }
 
-
       public void Read(BinaryReaderWriter br) {
          try {
             Options = br.ReadByte();
             uint iWidth = br.ReadByte();
             uint iHeight = br.ReadByte();
-            int cols = br.ReadByte();
+            colsday = br.ReadByte();
             ColormodeDay = (BitmapColorMode)br.ReadByte();
-            this.XBitmapDay = new PixMap(iWidth, iHeight, cols, ColormodeDay, br);
+            this.XBitmapDay = new PixMap(iWidth, iHeight, colsday, ColormodeDay, br);
             if (WithNightXpm) {
-               int cols2 = br.ReadByte();
+               colsnight = br.ReadByte();
                ColormodeNight = (BitmapColorMode)br.ReadByte();
                if (!NightXpmHasData) {
-                  Color[] col = BinaryColor.ReadColorTable(br, cols2);
+                  Color[] col = BinaryColor.ReadColorTable(br, colsnight);
                   XBitmapNight = new PixMap(XBitmapDay);
                   XBitmapNight.SetNewColors(col);
                } else
-                  XBitmapNight = new PixMap(Width, Height, cols2, ColormodeNight, br);
+                  XBitmapNight = new PixMap(Width, Height, colsnight, ColormodeNight, br);
             }
             if (WithString)
                Text = new MultiText(br);
             if (WithExtendedOptions) {
                ExtOptions = br.ReadByte();
-               switch (FontColTyp) {
+               switch (FontColType) {
                   case FontColours.Day:
                      colFontColour[0] = BinaryColor.ReadColor(br);
                      break;
@@ -232,7 +239,7 @@ namespace GarminCore.Files.Typ {
                }
             }
          } catch (Exception ex) {
-            throw new Exception(string.Format("Fehler beim Lesen des Punktes 0x{0:x} 0x{1:x}: {2}", Typ, Subtyp, ex.Message));
+            throw new Exception(string.Format("Fehler beim Lesen des Punktes 0x{0:x} 0x{1:x}: {2}", Type, Subtype, ex.Message));
          }
       }
 
@@ -245,7 +252,7 @@ namespace GarminCore.Files.Typ {
             Text.Write(bw, iCodepage);
          if (WithExtendedOptions) {
             bw.Write(ExtOptions);
-            switch (FontColTyp) {
+            switch (FontColType) {
                case FontColours.Day:
                   BinaryColor.WriteColor(bw, colFontColour[0]);
                   break;
@@ -372,25 +379,25 @@ namespace GarminCore.Files.Typ {
       public POI GetCopy(uint iTyp, uint iSubtyp) {
          POI n = (POI)MemberwiseClone();
          CopyExtData(n);
-         n.Typ = iTyp;
-         n.Subtyp = iSubtyp;
+         n.Type = iTyp;
+         n.Subtype = iSubtyp;
          return n;
       }
 
       public override string ToString() {
          StringBuilder sb = new StringBuilder();
          sb.Append("POI=[Typ=0x");
-         sb.Append(Typ.ToString("x2"));
-         if (Subtyp > 0x0)
-            sb.Append(Subtyp.ToString("x2"));
+         sb.Append(Type.ToString("x2"));
+         if (Subtype > 0x0)
+            sb.Append(Subtype.ToString("x2"));
          sb.AppendFormat(" {0}x{1}", Width, Height);
          sb.Append(" ColormodeDay=" + ColormodeDay.ToString());
          sb.Append(" ColormodeNight=" + ColormodeNight.ToString());
-         if (FontTyp != Fontdata.Default)
-            sb.Append(" Fonttyp=[" + FontTyp.ToString() + "]");
-         if (FontColTyp != FontColours.No) {
+         if (FontType != Fontdata.Default)
+            sb.Append(" Fonttyp=[" + FontType.ToString() + "]");
+         if (FontColType != FontColours.No) {
             sb.Append(" CustomColours=[");
-            switch (FontColTyp) {
+            switch (FontColType) {
                case FontColours.Day:
                   sb.Append("Day=" + colFontColour[0].ToString());
                   break;

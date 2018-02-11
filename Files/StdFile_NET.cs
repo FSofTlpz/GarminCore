@@ -435,7 +435,7 @@ namespace GarminCore.Files {
       }
 
       public override void ReadHeader(BinaryReaderWriter br) {
-         base.ReadCommonHeader(br, Typ);
+         base.ReadCommonHeader(br, Type);
 
          RoadDefinitionsBlock = new DataBlock(br);
          RoadDefinitionsOffsetMultiplier = br.ReadByte();

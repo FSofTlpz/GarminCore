@@ -40,7 +40,7 @@ namespace GarminCore.Files.Typ {
    /// </summary>
    public class Polygone : GraphicElement {
 
-      public enum PolygonType {
+      public enum ColorType {
          /// <summary>
          /// 1 solid colour
          /// </summary>
@@ -105,22 +105,22 @@ namespace GarminCore.Files.Typ {
       /// <summary>
       /// Polygontyp (Bit 0..4)
       /// </summary>
-      public PolygonType Polygontype {
-         get { return (PolygonType)(Options & 0x0F); }
+      public ColorType Colortype {
+         get { return (ColorType)(Options & 0x0F); }
          set {
             Options = (byte)((Options & 0xf0) | (int)value);
             // XPixMap erzeugen oder verwerfen
-            switch (Polygontype) {
-               case PolygonType.Day1:                             // keine Bitmaps, nur Solid-Farbe
-               case PolygonType.Day1_Night1:
+            switch (Colortype) {
+               case ColorType.Day1:                             // keine Bitmaps, nur Solid-Farbe
+               case ColorType.Day1_Night1:
                   if (XBitmapDay != null)
                      XBitmapDay = null;
                   if (XBitmapNight != null)
                      XBitmapNight = null;
                   break;
-               case PolygonType.BM_Day1:
-               case PolygonType.BM_Day2:
-                  XBitmapDay = GetDummyXPixMap(Polygontype == PolygonType.BM_Day1 ?
+               case ColorType.BM_Day1:
+               case ColorType.BM_Day2:
+                  XBitmapDay = GetDummyXPixMap(Colortype == ColorType.BM_Day1 ?
                                                          BitmapColorMode.POLY1TR :
                                                          BitmapColorMode.POLY2,
                                                true,
@@ -128,16 +128,16 @@ namespace GarminCore.Files.Typ {
                   if (XBitmapNight != null)
                      XBitmapNight = null;
                   break;
-               case PolygonType.BM_Day1_Night1:
-               case PolygonType.BM_Day1_Night2:
-               case PolygonType.BM_Day2_Night1:
-               case PolygonType.BM_Day2_Night2:
-                  XBitmapDay = GetDummyXPixMap((Polygontype == PolygonType.BM_Day1_Night1 || Polygontype == PolygonType.BM_Day1_Night2) ?
+               case ColorType.BM_Day1_Night1:
+               case ColorType.BM_Day1_Night2:
+               case ColorType.BM_Day2_Night1:
+               case ColorType.BM_Day2_Night2:
+                  XBitmapDay = GetDummyXPixMap((Colortype == ColorType.BM_Day1_Night1 || Colortype == ColorType.BM_Day1_Night2) ?
                                                    BitmapColorMode.POLY1TR :
                                                    BitmapColorMode.POLY2,
                                                    true,
                                                    XBitmapDay);
-                  XBitmapNight = GetDummyXPixMap((Polygontype == PolygonType.BM_Day1_Night1 || Polygontype == PolygonType.BM_Day2_Night1) ?
+                  XBitmapNight = GetDummyXPixMap((Colortype == ColorType.BM_Day1_Night1 || Colortype == ColorType.BM_Day2_Night1) ?
                                                    BitmapColorMode.POLY1TR :
                                                    BitmapColorMode.POLY2,
                                                    false,
@@ -169,6 +169,7 @@ namespace GarminCore.Files.Typ {
       /// Breite des Polygons (konstant)
       /// </summary>
       public override uint Width { get { return 32; } protected set { } }
+
       /// <summary>
       /// Höhe des Polygons (konstant)
       /// </summary>
@@ -189,10 +190,10 @@ namespace GarminCore.Files.Typ {
 
       public Polygone(uint iTyp, uint iSubtyp)
          : base() {
-         Typ = iTyp;
-         Subtyp = iSubtyp;
+         Type = iTyp;
+         Subtype = iSubtyp;
          Draworder = 1;
-         Polygontype = PolygonType.Day1;
+         Colortype = ColorType.Day1;
       }
 
       public void Read(BinaryReaderWriter br) {
@@ -200,22 +201,22 @@ namespace GarminCore.Files.Typ {
             Options = br.ReadByte();
 
             // es folgen 1 bis max. 4 Farben und ev. 1 Bitmap
-            switch (Polygontype) {  // hier muss sicher noch überprüft werden, ob die Typen wirklich richtig interpretiert werden
-               case PolygonType.Day1:
+            switch (Colortype) {  // hier muss sicher noch überprüft werden, ob die Typen wirklich richtig interpretiert werden
+               case ColorType.Day1:
                   colDayColor[0] = BinaryColor.ReadColor(br);
                   break;
 
-               case PolygonType.Day1_Night1:
+               case ColorType.Day1_Night1:
                   colDayColor[0] = BinaryColor.ReadColor(br);
                   colNightColor[0] = BinaryColor.ReadColor(br);
                   break;
 
-               case PolygonType.BM_Day2:           // 2 Farben + 1x Pixeldaten
+               case ColorType.BM_Day2:           // 2 Farben + 1x Pixeldaten
                   colDayColor = BinaryColor.ReadColorTable(br, 2);
                   XBitmapDay = new PixMap(32, 32, colDayColor, BitmapColorMode.POLY2, br);
                   break;
 
-               case PolygonType.BM_Day2_Night2:    // 4 Farben + 1x Pixeldaten
+               case ColorType.BM_Day2_Night2:    // 4 Farben + 1x Pixeldaten
                   colDayColor = BinaryColor.ReadColorTable(br, 2);
                   colNightColor = BinaryColor.ReadColorTable(br, 2);
                   XBitmapDay = new PixMap(32, 32, colDayColor, BitmapColorMode.POLY2, br);
@@ -223,7 +224,7 @@ namespace GarminCore.Files.Typ {
                   XBitmapNight.SetNewColors(colNightColor);
                   break;
 
-               case PolygonType.BM_Day1_Night2:    // 3 Farben + 1x Pixeldaten
+               case ColorType.BM_Day1_Night2:    // 3 Farben + 1x Pixeldaten
                   colDayColor[0] = BinaryColor.ReadColor(br);
                   colDayColor[1] = PixMap.TransparentColor;
                   colNightColor = BinaryColor.ReadColorTable(br, 2);
@@ -233,7 +234,7 @@ namespace GarminCore.Files.Typ {
                   XBitmapNight.SetNewColors(colNightColor);
                   break;
 
-               case PolygonType.BM_Day2_Night1:    // 3 Farben + 1x Pixeldaten
+               case ColorType.BM_Day2_Night1:    // 3 Farben + 1x Pixeldaten
                   colDayColor = BinaryColor.ReadColorTable(br, 2);
                   colNightColor[0] = BinaryColor.ReadColor(br);
                   colNightColor[1] = PixMap.TransparentColor;
@@ -243,13 +244,13 @@ namespace GarminCore.Files.Typ {
                   XBitmapNight.SetNewColors(colNightColor);
                   break;
 
-               case PolygonType.BM_Day1:           // 1 Farbe + 1x Pixeldaten
+               case ColorType.BM_Day1:           // 1 Farbe + 1x Pixeldaten
                   colDayColor[0] = colNightColor[0] = BinaryColor.ReadColor(br);
                   colDayColor[1] = colNightColor[1] = PixMap.TransparentColor;
                   XBitmapDay = new PixMap(32, 32, colDayColor, BitmapColorMode.POLY1TR, br);
                   break;
 
-               case PolygonType.BM_Day1_Night1:    // 2 Farben + 1x Pixeldaten
+               case ColorType.BM_Day1_Night1:    // 2 Farben + 1x Pixeldaten
                   colDayColor[0] = BinaryColor.ReadColor(br);
                   colDayColor[1] = PixMap.TransparentColor;
                   colNightColor[0] = BinaryColor.ReadColor(br);
@@ -276,7 +277,7 @@ namespace GarminCore.Files.Typ {
 
             if (WithExtendedOptions) {    // es folgen weitere (max. 2) Farben
                ExtOptions = br.ReadByte();
-               switch (FontColTyp) {
+               switch (FontColType) {
                   case FontColours.Day:
                      colFontColour[0] = BinaryColor.ReadColor(br);
                      break;
@@ -289,52 +290,52 @@ namespace GarminCore.Files.Typ {
                }
             }
          } catch (Exception ex) {
-            throw new Exception(string.Format("Fehler beim Lesen des Polygons 0x{0:x} 0x{1:x}: {2}", Typ, Subtyp, ex.Message));
+            throw new Exception(string.Format("Fehler beim Lesen des Polygons 0x{0:x} 0x{1:x}: {2}", Type, Subtype, ex.Message));
          }
       }
 
       public void Write(BinaryReaderWriter bw, int iCodepage) {
          bw.Write(Options);
 
-         switch (Polygontype) {
-            case PolygonType.Day1:
+         switch (Colortype) {
+            case ColorType.Day1:
                BinaryColor.WriteColor(bw, colDayColor[0]);
                break;
 
-            case PolygonType.Day1_Night1:
+            case ColorType.Day1_Night1:
                BinaryColor.WriteColor(bw, colDayColor[0]);
                BinaryColor.WriteColor(bw, colNightColor[0]);
                break;
 
-            case PolygonType.BM_Day2:
+            case ColorType.BM_Day2:
                XBitmapDay.WriteColorTable(bw);
                XBitmapDay.WriteRawdata(bw);
                break;
 
-            case PolygonType.BM_Day2_Night2:
+            case ColorType.BM_Day2_Night2:
                BinaryColor.WriteColorTable(bw, colDayColor);
                BinaryColor.WriteColorTable(bw, colNightColor);
                XBitmapDay.WriteRawdata(bw);
                break;
 
-            case PolygonType.BM_Day1_Night2:
+            case ColorType.BM_Day1_Night2:
                BinaryColor.WriteColor(bw, colDayColor[0]);
                BinaryColor.WriteColorTable(bw, colNightColor);
                XBitmapDay.WriteRawdata(bw);
                break;
 
-            case PolygonType.BM_Day2_Night1:
+            case ColorType.BM_Day2_Night1:
                BinaryColor.WriteColorTable(bw, colDayColor);
                BinaryColor.WriteColor(bw, colNightColor[0]);
                XBitmapDay.WriteRawdata(bw);
                break;
 
-            case PolygonType.BM_Day1:
+            case ColorType.BM_Day1:
                BinaryColor.WriteColor(bw, colDayColor[0]);
                XBitmapDay.WriteRawdata(bw);
                break;
 
-            case PolygonType.BM_Day1_Night1:
+            case ColorType.BM_Day1_Night1:
                BinaryColor.WriteColor(bw, colDayColor[0]);
                BinaryColor.WriteColor(bw, colNightColor[0]);
                XBitmapDay.WriteRawdata(bw);
@@ -344,7 +345,7 @@ namespace GarminCore.Files.Typ {
             Text.Write(bw, iCodepage);
          if (WithExtendedOptions) {    // es folgen weitere (max. 2) Farben
             bw.Write(ExtOptions);
-            switch (FontColTyp) {
+            switch (FontColType) {
                case FontColours.Day:
                   BinaryColor.WriteColor(bw, colFontColour[0]);
                   break;
@@ -416,26 +417,26 @@ namespace GarminCore.Files.Typ {
       /// <param name="typ"></param>
       /// <param name="bmday"></param>
       /// <param name="bmnight"></param>
-      public void SetBitmaps(PolygonType typ, Bitmap bmday, Bitmap bmnight = null) {
+      public void SetBitmaps(ColorType typ, Bitmap bmday, Bitmap bmnight = null) {
          if (bmday == null)
             throw new Exception("Kein Bitmap angegeben.");
-         if (typ == PolygonType.Day1 ||
-             typ == PolygonType.Day1_Night1)
+         if (typ == ColorType.Day1 ||
+             typ == ColorType.Day1_Night1)
             throw new Exception("Falscher Typ für eine Darstellung mit Bitmap.");
          if (bmday.Width != 32 || bmday.Height != 32)
             throw new Exception("Das Bitmap muß 32x32 groß sein.");
-         if (Polygontype != typ)
-            Polygontype = typ;
+         if (Colortype != typ)
+            Colortype = typ;
          switch (typ) {
-            case PolygonType.BM_Day1:
-            case PolygonType.BM_Day1_Night1:
-            case PolygonType.BM_Day1_Night2:
+            case ColorType.BM_Day1:
+            case ColorType.BM_Day1_Night1:
+            case ColorType.BM_Day1_Night2:
                XBitmapDay = new PixMap(bmday, BitmapColorMode.POLY1TR);
                DayColor1 = XBitmapDay.GetColor(0);
                break;
-            case PolygonType.BM_Day2:
-            case PolygonType.BM_Day2_Night1:
-            case PolygonType.BM_Day2_Night2:
+            case ColorType.BM_Day2:
+            case ColorType.BM_Day2_Night1:
+            case ColorType.BM_Day2_Night2:
                XBitmapDay = new PixMap(bmday, BitmapColorMode.POLY2);
                DayColor1 = XBitmapDay.GetColor(0);
                DayColor2 = XBitmapDay.GetColor(1);
@@ -446,13 +447,13 @@ namespace GarminCore.Files.Typ {
             if (bmday.Width != bmnight.Width || bmday.Height != bmnight.Height)
                throw new Exception("Beide Bitmaps müßen die gleiche Größe haben.");
             switch (typ) {
-               case PolygonType.BM_Day1_Night1:
-               case PolygonType.BM_Day2_Night1:
+               case ColorType.BM_Day1_Night1:
+               case ColorType.BM_Day2_Night1:
                   XBitmapNight = new PixMap(bmnight, BitmapColorMode.POLY1TR);
                   NightColor1 = XBitmapNight.GetColor(0);
                   break;
-               case PolygonType.BM_Day1_Night2:
-               case PolygonType.BM_Day2_Night2:
+               case ColorType.BM_Day1_Night2:
+               case ColorType.BM_Day2_Night2:
                   XBitmapNight = new PixMap(bmnight, BitmapColorMode.POLY1TR);
                   NightColor1 = XBitmapNight.GetColor(0);
                   NightColor2 = XBitmapNight.GetColor(1);
@@ -471,10 +472,11 @@ namespace GarminCore.Files.Typ {
       public void SetSolidColors(Color day1, Color night1) {
          XBitmapDay = null;
          XBitmapNight = null;
-         Polygontype = PolygonType.Day1_Night1;
+         Colortype = ColorType.Day1_Night1;
          DayColor1 = day1;
          NightColor1 = night1;
       }
+
       /// <summary>
       /// setzt die Farbe für die Darstellung ohne Bitmap
       /// </summary>
@@ -482,7 +484,7 @@ namespace GarminCore.Files.Typ {
       public void SetSolidColor(Color day1) {
          XBitmapDay = null;
          XBitmapNight = null;
-         Polygontype = PolygonType.Day1;
+         Colortype = ColorType.Day1;
          DayColor1 = day1;
       }
 
@@ -493,36 +495,36 @@ namespace GarminCore.Files.Typ {
       public void SwapColors(bool b4Day) {
          Color tmp;
          if (b4Day) {
-            switch (Polygontype) {
-               case Polygone.PolygonType.Day1:
-               case Polygone.PolygonType.Day1_Night1:
+            switch (Colortype) {
+               case Polygone.ColorType.Day1:
+               case Polygone.ColorType.Day1_Night1:
                   break;
-               case Polygone.PolygonType.BM_Day1:
-               case Polygone.PolygonType.BM_Day1_Night2:
-               case Polygone.PolygonType.BM_Day1_Night1:
+               case Polygone.ColorType.BM_Day1:
+               case Polygone.ColorType.BM_Day1_Night2:
+               case Polygone.ColorType.BM_Day1_Night1:
                   XBitmapDay.InvertBits();
                   break;
-               case Polygone.PolygonType.BM_Day2_Night1:
-               case Polygone.PolygonType.BM_Day2:
-               case Polygone.PolygonType.BM_Day2_Night2:
+               case Polygone.ColorType.BM_Day2_Night1:
+               case Polygone.ColorType.BM_Day2:
+               case Polygone.ColorType.BM_Day2_Night2:
                   tmp = DayColor1;
                   DayColor1 = DayColor2;
                   DayColor2 = tmp;
                   break;
             }
          } else
-            switch (Polygontype) {
-               case Polygone.PolygonType.Day1:
-               case Polygone.PolygonType.BM_Day1:
-               case Polygone.PolygonType.BM_Day2:
-               case Polygone.PolygonType.Day1_Night1:
+            switch (Colortype) {
+               case Polygone.ColorType.Day1:
+               case Polygone.ColorType.BM_Day1:
+               case Polygone.ColorType.BM_Day2:
+               case Polygone.ColorType.Day1_Night1:
                   break;
-               case Polygone.PolygonType.BM_Day1_Night1:
-               case Polygone.PolygonType.BM_Day2_Night1:
+               case Polygone.ColorType.BM_Day1_Night1:
+               case Polygone.ColorType.BM_Day2_Night1:
                   XBitmapNight.InvertBits();
                   break;
-               case Polygone.PolygonType.BM_Day1_Night2:
-               case Polygone.PolygonType.BM_Day2_Night2:
+               case Polygone.ColorType.BM_Day1_Night2:
+               case Polygone.ColorType.BM_Day2_Night2:
                   tmp = DayColor1;
                   DayColor1 = DayColor2;
                   DayColor2 = tmp;
@@ -539,62 +541,62 @@ namespace GarminCore.Files.Typ {
       public Polygone GetCopy(uint iTyp, uint iSubtyp) {
          Polygone n = (Polygone)MemberwiseClone();
          CopyExtData(n);
-         n.Typ = iTyp;
-         n.Subtyp = iSubtyp;
+         n.Type = iTyp;
+         n.Subtype = iSubtyp;
          return n;
       }
 
       public override string ToString() {
          StringBuilder sb = new StringBuilder();
          sb.Append("Polygone=[Typ=0x");
-         sb.Append(Typ.ToString("x2"));
-         if (Typ >= 0x100)
-            sb.Append(Subtyp.ToString("x2"));
-         sb.Append(" " + Polygontype.ToString() + " ");
-         switch (Polygontype) {
-            case PolygonType.Day1:
+         sb.Append(Type.ToString("x2"));
+         if (Type >= 0x100)
+            sb.Append(Subtype.ToString("x2"));
+         sb.Append(" " + Colortype.ToString() + " ");
+         switch (Colortype) {
+            case ColorType.Day1:
                sb.Append(colDayColor.ToString());
                break;
-            case PolygonType.Day1_Night1:
+            case ColorType.Day1_Night1:
                sb.Append(colDayColor.ToString());
                sb.Append(colNightColor.ToString());
                break;
-            case PolygonType.BM_Day1_Night1:
+            case ColorType.BM_Day1_Night1:
                sb.Append(colDayColor[0].ToString());
                sb.Append(colNightColor[0].ToString());
                sb.Append(XBitmapDay.ToString());
                break;
-            case PolygonType.BM_Day1_Night2:
+            case ColorType.BM_Day1_Night2:
                sb.Append(colDayColor[0].ToString());
-               sb.Append(colNightColor[0].ToString());
-               sb.Append(colNightColor[1].ToString());
-               sb.Append(XBitmapDay.ToString());
-               break;
-            case PolygonType.BM_Day2_Night2:
-               sb.Append(colDayColor[0].ToString());
-               sb.Append(colDayColor[1].ToString());
                sb.Append(colNightColor[0].ToString());
                sb.Append(colNightColor[1].ToString());
                sb.Append(XBitmapDay.ToString());
                break;
-            case PolygonType.BM_Day2:
+            case ColorType.BM_Day2_Night2:
+               sb.Append(colDayColor[0].ToString());
+               sb.Append(colDayColor[1].ToString());
+               sb.Append(colNightColor[0].ToString());
+               sb.Append(colNightColor[1].ToString());
+               sb.Append(XBitmapDay.ToString());
+               break;
+            case ColorType.BM_Day2:
                sb.Append(colDayColor[0].ToString());
                sb.Append(colDayColor[1].ToString());
                sb.Append(XBitmapDay.ToString());
                break;
-            case PolygonType.BM_Day2_Night1:
+            case ColorType.BM_Day2_Night1:
                sb.Append(colDayColor[0].ToString());
                sb.Append(colDayColor[1].ToString());
                sb.Append(colNightColor[0].ToString());
                sb.Append(XBitmapDay.ToString());
                break;
-            case PolygonType.BM_Day1:
+            case ColorType.BM_Day1:
                sb.Append(colDayColor[0].ToString());
                sb.Append(XBitmapDay.ToString());
                break;
          }
          if (WithExtendedOptions)
-            sb.Append(" Options=[" + FontTyp.ToString() + "|" + FontColTyp.ToString() + "]");
+            sb.Append(" Options=[" + FontType.ToString() + "|" + FontColType.ToString() + "]");
          if (WithString)
             sb.Append(" " + Text.ToString());
          sb.Append(" ]");

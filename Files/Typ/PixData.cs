@@ -38,11 +38,13 @@ namespace GarminCore.Files.Typ {
    /// <summary>
    /// nur zur Verwaltung der reinen Pixeldaten eines Bitmaps
    /// </summary>
-   internal class PixData {
+   public class PixData {
+      
       /// <summary>
       /// Bildbreite
       /// </summary>
       public uint Width { get; protected set; }
+
       /// <summary>
       /// Bildhöhe
       /// </summary>
@@ -56,7 +58,8 @@ namespace GarminCore.Files.Typ {
       /// <summary>
       /// Pixeldaten (entsprechend dem Typfileinhalt)
       /// </summary>
-      protected byte[] rawimgdata;
+      public byte[] rawimgdata { get; private set; }
+
 
       /// <summary>
       /// erzeugt den entsprechenden Datenpuffer und liest ihn ev. aus dem Stream
@@ -73,6 +76,7 @@ namespace GarminCore.Files.Typ {
          if (br != null)
             Read(br);
       }
+      
       /// <summary>
       /// erzeugt eine Kopie
       /// </summary>
@@ -81,6 +85,7 @@ namespace GarminCore.Files.Typ {
          this(pix.Width, pix.Height, pix.BpP) {
          pix.rawimgdata.CopyTo(rawimgdata, 0);
       }
+      
       /// <summary>
       /// erzeugt den entsprechenden Datenpuffer aus dem Bitmap
       /// </summary>
@@ -117,6 +122,7 @@ namespace GarminCore.Files.Typ {
       public Bitmap AsBitmap(Color[] Col, Color colDummy) {
          return Convert2Bitmap(Width, Height, BpP, rawimgdata, Col, colDummy);
       }
+ 
       /// <summary>
       /// liefert ein Bitmap, falls die Daten die Farben direkt enthalten
       /// </summary>

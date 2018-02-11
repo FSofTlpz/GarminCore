@@ -882,7 +882,7 @@ namespace GarminCore.SimpleMapInterface {
 
                //Debug.WriteLine(">>> PolygonList {0}", sd.PolygonList.Count);
                foreach (var item in sd.AreaList) {
-                  if (ReadFilter4Areatypes == null || ReadFilter4Areatypes.Contains((item.Typ << 8) | (item.Subtyp))) {
+                  if (ReadFilter4Areatypes == null || ReadFilter4Areatypes.Contains((item.Type << 8) | (item.Subtype))) {
                      DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits);
                      if (item.LabelOffset != 0)
                         if (!item.LabelInNET)            // das dürfte immer so sein
@@ -893,7 +893,7 @@ namespace GarminCore.SimpleMapInterface {
 
                //Debug.WriteLine(">>> ExtPolygonList {0}", sd.ExtPolygonList.Count);
                foreach (var item in sd.ExtAreaList) {
-                  if (ReadFilter4Areatypes == null || ReadFilter4Areatypes.Contains((0x10000) | (item.Typ << 8) | (item.Subtyp))) {
+                  if (ReadFilter4Areatypes == null || ReadFilter4Areatypes.Contains((0x10000) | (item.Type << 8) | (item.Subtype))) {
                      DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits, true);
                      if (item.HasLabel)
                         p.Label = lbl.GetText(item.LabelOffset);
@@ -905,7 +905,7 @@ namespace GarminCore.SimpleMapInterface {
 
                //Debug.WriteLine(">>> PoylineList {0}", sd.PoylineList.Count);
                foreach (var item in sd.LineList) {
-                  if (ReadFilter4Linetypes == null || ReadFilter4Linetypes.Contains((item.Typ << 8) | (item.Subtyp))) {
+                  if (ReadFilter4Linetypes == null || ReadFilter4Linetypes.Contains((item.Type << 8) | (item.Subtype))) {
                      DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits);
                      if (item.LabelOffset != 0)
                         if (!item.LabelInNET)
@@ -918,7 +918,7 @@ namespace GarminCore.SimpleMapInterface {
 
                //Debug.WriteLine(">>> ExtPolylineList {0}", sd.ExtPolylineList.Count);
                foreach (var item in sd.ExtLineList) {
-                  if (ReadFilter4Linetypes == null || ReadFilter4Linetypes.Contains((0x10000) | (item.Typ << 8) | (item.Subtyp))) {
+                  if (ReadFilter4Linetypes == null || ReadFilter4Linetypes.Contains((0x10000) | (item.Type << 8) | (item.Subtype))) {
                      DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits, false);
                      if (item.HasLabel)
                         p.Label = lbl.GetText(item.LabelOffset);
@@ -929,7 +929,7 @@ namespace GarminCore.SimpleMapInterface {
                // ================ Punkte verarbeiten
 
                foreach (var item in sd.IdxPointList) {      // vor den "normalen" Punkten einlesen, damit der ev. Index-Verweise stimmen (z.B. für Exits)
-                  if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((item.Typ << 8) | (item.Subtyp))) {
+                  if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((item.Type << 8) | (item.Subtype))) {
                      DetailMap.Point p = new DetailMap.Point(item, sdi.Center, coordbits);
 
                      if (item.LabelOffset != 0)
@@ -947,7 +947,7 @@ namespace GarminCore.SimpleMapInterface {
                }
 
                foreach (var item in sd.PointList) {
-                  if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((item.Typ << 8) | (item.Subtyp))) {
+                  if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((item.Type << 8) | (item.Subtype))) {
                      DetailMap.Point p = new DetailMap.Point(item, sdi.Center, coordbits);
 
                      if (item.LabelOffset != 0)
@@ -968,7 +968,7 @@ namespace GarminCore.SimpleMapInterface {
                }
 
                foreach (var item in sd.ExtPointList) {
-                  if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((0x10000) | (item.Typ << 8) | (item.Subtyp))) {
+                  if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((0x10000) | (item.Type << 8) | (item.Subtype))) {
                      DetailMap.Point p = new DetailMap.Point(item, sdi.Center, coordbits);
 
                      if (item.HasLabel)
@@ -1799,43 +1799,43 @@ namespace GarminCore.SimpleMapInterface {
                for (int i = firstidx; i < endidx; i++) { // ... jede Subdiv prüfen 
                   StdFile_RGN.SubdivData sd = subdivs[i];
                   foreach (var obj in sd.AreaList) {
-                     int type = (obj.Typ << 8) | obj.Subtyp;
+                     int type = (obj.Type << 8) | obj.Subtype;
                      if (!MaxSymbolicScale4Area.ContainsKey(type))
                         MaxSymbolicScale4Area.Add(type, symbolicscale);
                   }
 
                   foreach (var obj in sd.ExtAreaList) {
-                     int type = 0x10000 | (obj.Typ << 8) | obj.Subtyp;
+                     int type = 0x10000 | (obj.Type << 8) | obj.Subtype;
                      if (!MaxSymbolicScale4Area.ContainsKey(type))
                         MaxSymbolicScale4Area.Add(type, symbolicscale);
                   }
 
                   foreach (var obj in sd.LineList) {
-                     int type = (obj.Typ << 8) | obj.Subtyp;
+                     int type = (obj.Type << 8) | obj.Subtype;
                      if (!MaxSymbolicScale4Line.ContainsKey(type))
                         MaxSymbolicScale4Line.Add(type, symbolicscale);
                   }
 
                   foreach (var obj in sd.ExtLineList) {
-                     int type = 0x10000 | (obj.Typ << 8) | obj.Subtyp;
+                     int type = 0x10000 | (obj.Type << 8) | obj.Subtype;
                      if (!MaxSymbolicScale4Line.ContainsKey(type))
                         MaxSymbolicScale4Line.Add(type, symbolicscale);
                   }
 
                   foreach (var obj in sd.PointList) {
-                     int type = (obj.Typ << 8) | obj.Subtyp;
+                     int type = (obj.Type << 8) | obj.Subtype;
                      if (!MaxSymbolicScale4Point.ContainsKey(type))
                         MaxSymbolicScale4Point.Add(type, symbolicscale);
                   }
 
                   foreach (var obj in sd.IdxPointList) {
-                     int type = (obj.Typ << 8) | obj.Subtyp;
+                     int type = (obj.Type << 8) | obj.Subtype;
                      if (!MaxSymbolicScale4Point.ContainsKey(type))
                         MaxSymbolicScale4Point.Add(type, symbolicscale);
                   }
 
                   foreach (var obj in sd.ExtPointList) {
-                     int type = 0x10000 | (obj.Typ << 8) | obj.Subtyp;
+                     int type = 0x10000 | (obj.Type << 8) | obj.Subtype;
                      if (!MaxSymbolicScale4Point.ContainsKey(type))
                         MaxSymbolicScale4Point.Add(type, symbolicscale);
                   }
@@ -2020,8 +2020,8 @@ namespace GarminCore.SimpleMapInterface {
                      foreach (DetailMap.Point point in dm.PointList) {
                         if (!point.IsExtendedType) {
                            StdFile_RGN.RawPointData pd = new StdFile_RGN.RawPointData();
-                           pd.Typ = point.MainType;
-                           pd.Subtyp = point.SubType;
+                           pd.Type = point.MainType;
+                           pd.Subtype = point.SubType;
                            pd.RawDeltaLatitude = point.Latitude4Save(sdib.Center.Latitude, coordbits);
                            pd.RawDeltaLongitude = point.Longitude4Save(sdib.Center.Longitude, coordbits);
                            bool isexit = false;
@@ -2085,8 +2085,8 @@ namespace GarminCore.SimpleMapInterface {
 
                         } else {
                            StdFile_RGN.ExtRawPointData pd = new StdFile_RGN.ExtRawPointData();
-                           pd.Typ = point.MainType;
-                           pd.Subtyp = point.SubType;
+                           pd.Type = point.MainType;
+                           pd.Subtype = point.SubType;
                            pd.LabelOffset = string.IsNullOrEmpty(point.Label) ? 0 : lbl.GetTextOffset(point.Label);
                            pd.RawDeltaLatitude = point.Latitude4Save(sdib.Center.Latitude, coordbits);
                            pd.RawDeltaLongitude = point.Longitude4Save(sdib.Center.Longitude, coordbits);

@@ -58,11 +58,11 @@ namespace GarminCore.Files.Typ {
       /// <summary>
       /// Typ des Elements
       /// </summary>
-      public uint Typ { get; set; }
+      public uint Type { get; set; }
       /// <summary>
       /// Subtyp des Elements
       /// </summary>
-      public uint Subtyp { get; set; }
+      public uint Subtype { get; set; }
 
       /// <summary>
       /// Multisprachlicher Text
@@ -73,23 +73,23 @@ namespace GarminCore.Files.Typ {
       protected Color[] colNightColor;          // Vorder-, Hintergrund
       protected Color[] colFontColour;          // zusätzliche (Text-)Farben für Tag, Nacht
 
-      internal PixMap XBitmapDay;
-      internal PixMap XBitmapNight;
+      public PixMap XBitmapDay { get; protected set; }
+      public PixMap XBitmapNight { get; protected set; }
 
-      protected byte Options;
-      protected byte ExtOptions;
+      public byte Options { get; protected set; }
+      public byte ExtOptions { get; protected set; }
 
       /// <summary>
       /// Fontdaten (Bit 0,1,2)
       /// </summary>
-      public Fontdata FontTyp {
+      public Fontdata FontType {
          get { return (Fontdata)(ExtOptions & 0x7); }
          set { ExtOptions = (byte)((ExtOptions & 0xf8) + value); SetExtendedOptions(); }
       }
       /// <summary>
       /// Fontfarben (Bit 3,4)
       /// </summary>
-      public FontColours FontColTyp {
+      public FontColours FontColType {
          get { return (FontColours)(ExtOptions & 0x18); }
          set { ExtOptions = (byte)((ExtOptions & 0x7) + value); SetExtendedOptions(); }
       }
@@ -98,13 +98,13 @@ namespace GarminCore.Files.Typ {
       /// setz 'WithExtendedOptions'
       /// </summary>
       protected void SetExtendedOptions() {
-         WithExtendedOptions = !(FontTyp == Fontdata.Default &&
-                                 FontColTyp == FontColours.No);
+         WithExtendedOptions = !(FontType == Fontdata.Default &&
+                                 FontColType == FontColours.No);
       }
 
 
       public GraphicElement() {
-         Typ = Subtyp = 0;
+         Type = Subtype = 0;
          colDayColor = new Color[2];
          colDayColor[0] = colDayColor[1] = PixMap.TransparentColor;
          colNightColor = new Color[2];
@@ -119,8 +119,8 @@ namespace GarminCore.Files.Typ {
 
       public GraphicElement(GraphicElement ge)
          : this() {
-         Typ = ge.Typ;
-         Subtyp = ge.Subtyp;
+         Type = ge.Type;
+         Subtype = ge.Subtype;
          Text = new MultiText(ge.Text);
          for (int i = 0; i < colDayColor.Length; i++)
             colDayColor[i] = ge.colDayColor[i];
@@ -130,8 +130,8 @@ namespace GarminCore.Files.Typ {
             colFontColour[i] = ge.colFontColour[i];
          Options = ge.Options;
          ExtOptions = ge.ExtOptions;
-         FontTyp = ge.FontTyp;
-         FontColTyp = ge.FontColTyp;
+         FontType = ge.FontType;
+         FontColType = ge.FontColType;
          XBitmapDay = new PixMap(XBitmapDay);
          XBitmapNight = new PixMap(XBitmapNight);
       }
@@ -223,8 +223,6 @@ namespace GarminCore.Files.Typ {
       protected bool BitIsSet(byte b, byte bit) {
          return Bit.IsSet(b, bit);
       }
-
-
 
       // Die Farben haben je nach PolygonType/PolylineType nicht immer alle eine Bedeutung!
 
@@ -378,12 +376,12 @@ namespace GarminCore.Files.Typ {
          if (obj is GraphicElement) {
             GraphicElement ge = (GraphicElement)obj;
             if (ge == null) return 1;
-            if (Typ == ge.Typ) {
-               if (Subtyp > ge.Subtyp) return 1;
-               if (Subtyp < ge.Subtyp) return -1;
+            if (Type == ge.Type) {
+               if (Subtype > ge.Subtype) return 1;
+               if (Subtype < ge.Subtype) return -1;
                else return 0;
             } else
-               if (Typ > ge.Typ) return 1;
+               if (Type > ge.Type) return 1;
             else return -1;
          }
          throw new ArgumentException("Falsche Objektart beim Vergleich.");

@@ -97,7 +97,7 @@ namespace GarminCore.Files {
       /// <summary>
       /// Dateityp (3stellig)
       /// </summary>
-      public string Typ {
+      public string Type {
          get {
             return GarminTyp.Length > 7 ? GarminTyp.Substring(7) : "";
          }
@@ -121,7 +121,7 @@ namespace GarminCore.Files {
       protected uint _GapOffset;
 
       /// <summary>
-      /// Offset des Lücke bezüglich des Headeranfangs (kann nie kleiner als <see cref="Headerlength"/> sein und ist normalerweise 
+      /// Offset der Lücke bezüglich des Headeranfangs (kann nie kleiner als <see cref="Headerlength"/> sein und ist normalerweise 
       /// auch <see cref="Headerlength"/>)
       /// <para>Dieser Wert muss vor dem Lesen und Schreiben der Daten korrekt gesetzt sein, falls er größer als <see cref="Headerlength"/> sein soll!</para>
       /// </summary>
@@ -163,7 +163,7 @@ namespace GarminCore.Files {
       /// <param name="typ">Dateityp ("LBL" oder ähnlich); wenn null wird intern nur "xxx" gesetzt</param>
       public StdFile(string typ = null) {
          Headerlength = 0;
-         Typ = typ != null && typ.Length == 3 ? typ : "xxx";
+         Type = typ != null && typ.Length == 3 ? typ : "xxx";
          Unknown_0x0C = 0x01;
          Locked = 0x00;
          CreationDate = DateTime.MinValue;
@@ -199,7 +199,7 @@ namespace GarminCore.Files {
 
          try {
             CreationDate = new DateTime(br.ReadInt16(),
-                                        br.ReadByte() + 1,
+                                        br.ReadByte(), // "echter" Monat
                                         br.ReadByte(),
                                         br.ReadByte(),
                                         br.ReadByte(),
@@ -223,7 +223,7 @@ namespace GarminCore.Files {
          wr.Write(Unknown_0x0C);
          wr.Write(Locked);
          wr.Write((Int16)(CreationDate.Year));
-         wr.Write((byte)(CreationDate.Month - 1));
+         wr.Write((byte)(CreationDate.Month));
          wr.Write((byte)(CreationDate.Day));
          wr.Write((byte)(CreationDate.Hour));
          wr.Write((byte)(CreationDate.Minute));
@@ -303,7 +303,7 @@ namespace GarminCore.Files {
       /// <param name="bw"></param>
       protected virtual void Encode_Header(BinaryReaderWriter bw) {
          if (bw != null)
-            WriteCommonHeader(bw, Typ);
+            WriteCommonHeader(bw, Type);
 
       }
 

@@ -41,10 +41,12 @@ namespace GarminCore.Files.Typ {
    /// </summary>
    public enum BitmapColorMode {
       POI_SIMPLE = 0,
+     
       /// <summary>
       /// eine zusätzlicher Farbcode (nicht in der Farbtabelle enthalten) steht für transparente Pixel
       /// </summary>
       POI_TR = 0x10,
+      
       /// <summary>
       /// jede Farbe kann ihre eigene Transparenz haben
       /// </summary>
@@ -54,19 +56,21 @@ namespace GarminCore.Files.Typ {
       /// 1 Bit je Pixel, 2 Farben
       /// </summary>
       POLY2 = 0xfffd,
+      
       /// <summary>
       /// 1 Bit je Pixel, 1 Farbe (Code 1) + Transparenz
       /// </summary>
       POLY1TR = 0xfffe,
+
       unknown = 0xffff
    }
 
    /// <summary>
    /// zur Behandlung der verschiedenen Bitmaps
    /// </summary>
-   internal class PixMap {
+   public class PixMap {
 
-      protected PixData data;
+      public PixData data { get; private set; }
 
       /// <summary>
       /// Bildbreite
@@ -102,6 +106,7 @@ namespace GarminCore.Files.Typ {
       /// </summary>
       protected Color[] colColorTable;
 
+
       static PixMap() {
          TransparentColor = Color.FromArgb(0, 255, 255, 255);
       }
@@ -119,6 +124,7 @@ namespace GarminCore.Files.Typ {
          if (br != null)
             data.Read(br);
       }
+    
       /// <summary>
       /// erzeugt ein Bild mit max. 256 Farben (auch 0 Farben); transparent ist die "Dummy"-Farbe; liest die Farbtabelle und die Daten ev. aus dem Stream
       /// </summary>
@@ -193,6 +199,7 @@ namespace GarminCore.Files.Typ {
                data = new PixData(iWidth, iHeight, BpP, br);
             }
       }
+      
       /// <summary>
       /// erzeugt eine Kopie des Bildes
       /// </summary>
@@ -203,6 +210,7 @@ namespace GarminCore.Files.Typ {
          colColorTable = new Color[xpm.colColorTable.Length];
          xpm.colColorTable.CopyTo(colColorTable, 0);
       }
+      
       /// <summary>
       /// erzeugt ein Bild aus dem Bitmap
       /// </summary>
@@ -215,6 +223,7 @@ namespace GarminCore.Files.Typ {
          Color[] coltab = GraphicElement.GetBitmapColorInfo(bm, out bWithTransp, out bWithAlpha);
          CreateFromBitmap(bm, Colormode, bExtended, coltab, bWithTransp, bWithAlpha);
       }
+      
       /// <summary>
       /// erzeugt ein Bild aus dem Bitmap
       /// </summary>

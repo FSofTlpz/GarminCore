@@ -36,10 +36,21 @@ namespace GarminCore {
    /// beschreibt einen Dateibereich mit Offset und Länge (4 + 4 Byte) und einer Satzlänge (2 Byte)
    /// </summary>
    public class DataBlockWithRecordsize : DataBlock {
+    
       /// <summary>
       /// Satzlänge im Dateibereich
       /// </summary>
       public UInt16 Recordsize { get; set; }
+      
+      /// <summary>
+      /// berechnete Datensatzanzahl
+      /// </summary>
+      public int Count {
+         get {
+            return Recordsize > 0 ? (int)Length / Recordsize : 0;
+         }
+      }
+
 
       public DataBlockWithRecordsize()
          : base() {
@@ -79,7 +90,7 @@ namespace GarminCore {
       }
 
       public override string ToString() {
-         return string.Format("Block=[Offset 0x{0:x}, Länge 0x{1:x}, Recordsize 0x{2:x}]", Offset, Length, Recordsize);
+         return string.Format("Block=[Offset 0x{0:X}, Length 0x{1:X}, Recordsize 0x{2:X}]", Offset, Length, Recordsize);
       }
    }
 

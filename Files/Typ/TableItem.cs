@@ -30,7 +30,6 @@ diesem Programm erhalten haben. Falls nicht, siehe
 <http://www.gnu.org/licenses/>. 
 */
 using System;
-using System.IO;
 using System.Text;
 
 namespace GarminCore.Files.Typ {
@@ -38,49 +37,48 @@ namespace GarminCore.Files.Typ {
    /// <summary>
    /// Hilfsklasse um den Typ/Subtyp sowie den Offset zu den eigentlichen Daten in der Datei zu behandeln
    /// </summary>
-   internal class TableItem {
+   public class TableItem {
 
-      UInt16 typ;
+      public UInt16 rawtype { get; private set; }
 
       /// <summary>
       /// Typ (Bit 5...15, d.h. 0 .. 0x7ff)
       /// </summary>
-      public uint Typ {
-         get { return (uint)(typ >> 5); }
-         set { typ = (UInt16)(Subtyp + ((value & 0x7ff) << 5)); }
+      public uint Type {
+         get { return (uint)(rawtype >> 5); }
+         set { rawtype = (UInt16)(Subtype + ((value & 0x7ff) << 5)); }
       }
+
       /// <summary>
       /// Subtyp (Bit 0...4, d.h. 0 .. 0x1f)
       /// </summary>
-      public uint Subtyp {
-         get { return (uint)(typ & 0x1f); }
-         set { typ = (UInt16)((typ & 0xffe0) + (value & 0x1f)); }
+      public uint Subtype {
+         get { return (uint)(rawtype & 0x1f); }
+         set { rawtype = (UInt16)((rawtype & 0xffe0) + (value & 0x1f)); }
       }
+
       /// <summary>
       /// Offset zum Anfang des jeweiligen Blocks
       /// </summary>
       public int Offset { get; set; }
 
       public TableItem() {
-         Typ = Subtyp = 0;
+         Type = Subtype = 0;
          Offset = 0;
       }
 
       public TableItem(BinaryReaderWriter br, int iItemlength)
          : this() {
-         typ = br.ReadUInt16();
+         rawtype = br.ReadUInt16();
          switch (iItemlength) {
             case 3: Offset = br.ReadByte(); break;
             case 4: Offset = br.ReadUInt16(); break;
-            case 5:
-               Offset = br.ReadUInt16();
-               Offset += br.ReadByte() << 16;    // falls das wirklich das höchstwertigste Byte ist
-               break;
+            case 5: Offset = (int)br.Read3U(); break;
          }
       }
 
       public void Write(BinaryReaderWriter bw, int iItemlength) {
-         UInt16 type = (UInt16)((Typ << 5) | Subtyp);
+         UInt16 type = (UInt16)((Type << 5) | Subtype);
          bw.Write(type);
          switch (iItemlength) {
             case 3: bw.Write((byte)(Offset & 0xff)); break;
@@ -95,8 +93,8 @@ namespace GarminCore.Files.Typ {
       public override string ToString() {
          StringBuilder sb = new StringBuilder();
          sb.Append("DataItem=[");
-         sb.Append("Typ=0x" + Typ.ToString("x"));
-         sb.Append(" Subtyp=0x" + Subtyp.ToString("x"));
+         sb.Append("Typ=0x" + Type.ToString("x"));
+         sb.Append(" Subtyp=0x" + Subtype.ToString("x"));
          sb.Append(" Offset=0x" + Offset.ToString("x"));
          sb.Append("]");
          return sb.ToString();

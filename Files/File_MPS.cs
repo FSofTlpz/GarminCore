@@ -42,7 +42,7 @@ namespace GarminCore.Files {
       public class MapEntry {
 
          public char Typ;
-         
+
          public UInt16 ProductID;
 
          public UInt16 FamilyID;
@@ -72,6 +72,7 @@ namespace GarminCore.Files {
 
          public UInt16 Unknown4;
 
+         public byte Unknown5;
 
          /// <summary>
          /// 
@@ -95,39 +96,41 @@ namespace GarminCore.Files {
             UInt16 len = br.ReadUInt16();       // Anzahl der noch folgenden Bytes
             long end = br.BaseStream.Position + len;
 
-            if (Typ == 'L') {                // MapBlock
+            switch (Typ) {
+               case 'L': // MapBlock
+                  ProductID = br.ReadUInt16();
+                  FamilyID = br.ReadUInt16();
+                  MapNumber = br.ReadUInt32();
+                  while (br.BaseStream.Position < end - 9)     // seriesName, mapDescription, areaName
+                     Name.Add(br.ReadString());
+                  Unknown0 = br.ReadUInt32();
+                  Unknown1 = br.ReadUInt32();
+                  break;
 
-               ProductID = br.ReadUInt16();
-               FamilyID = br.ReadUInt16();
-               MapNumber = br.ReadUInt32();
-               while (br.BaseStream.Position < end - 8)
-                  Name.Add(br.ReadString());
-               Unknown0 = br.ReadUInt32();
-               Unknown1 = br.ReadUInt32();
+               case 'P': // ProductBlock
+                  ProductID = br.ReadUInt16();
+                  FamilyID = br.ReadUInt16();
+                  Unknown2 = br.ReadUInt16();
+                  Unknown3 = br.ReadUInt16();
+                  Unknown4 = br.ReadUInt16();
+                  break;
 
-            } else if (Typ == 'P') {         // ProductBlock
+               case 'F': // vereinfachter MapBlock ?
+                  ProductID = br.ReadUInt16();
+                  FamilyID = br.ReadUInt16();
+                  while (br.BaseStream.Position < end)         // description (nur 1x?)
+                     Name.Add(br.ReadString());
+                  break;
 
-               ProductID = br.ReadUInt16();
-               FamilyID = br.ReadUInt16();
-               Unknown2 = br.ReadUInt16();
-               Unknown3 = br.ReadUInt16();
-               Unknown4 = br.ReadUInt16();
+               case 'V':
+                  while (br.BaseStream.Position < end - 1)
+                     Name.Add(br.ReadString());
+                  Unknown5 = br.ReadByte();
+                  break;
 
-            } else if (Typ == 'F') {         // vereinfachter MapBlock ?
+               default:
 
-               ProductID = br.ReadUInt16();
-               FamilyID = br.ReadUInt16();
-               while (br.BaseStream.Position < end)
-                  Name.Add(br.ReadString());
-
-            } else if (Typ == 'V') {
-
-               while (br.BaseStream.Position < end)
-                  Name.Add(br.ReadString());
-
-            } else {
-
-
+                  break;
             }
          }
 
@@ -210,6 +213,7 @@ namespace GarminCore.Files {
       /// </summary>
       /// <param name="br"></param>
       public void Read(BinaryReaderWriter br) {
+         br.Seek(0);
          while (br.BaseStream.Position < br.BaseStream.Length) {
             MapEntry me = new MapEntry();
             me.Read(br);

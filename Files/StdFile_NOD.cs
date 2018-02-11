@@ -122,7 +122,7 @@ namespace GarminCore.Files {
       }
 
       public override void ReadHeader(BinaryReaderWriter br) {
-         base.ReadCommonHeader(br, Typ);
+         base.ReadCommonHeader(br, Type);
 
          Nod1.Read(br);
          Unknown_0x1D = br.ReadByte();

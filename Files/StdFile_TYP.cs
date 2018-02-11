@@ -45,125 +45,43 @@ namespace GarminCore.Files {
       #region Header-Daten
 
       /// <summary>
-      /// Basis für Tabellen
+      /// beschreibt einen Dateibereich mit Offset und Länge (4 + 4 Byte) und einer Satzlänge (2 Byte)
       /// </summary>
-      abstract class DataTable {
+      public class TypDataBlockWithRecordsize : DataBlockWithRecordsize {
+
+         public TypDataBlockWithRecordsize() : base() { }
+
+         public TypDataBlockWithRecordsize(DataBlockWithRecordsize block) {
+            Offset = block.Offset;
+            Length = block.Length;
+            Recordsize = block.Recordsize;
+         }
+
+         public TypDataBlockWithRecordsize(BinaryReaderWriter br) {
+            Read(br);
+         }
+
          /// <summary>
-         /// Offset und Länge der Tabelle in der Datei
+         /// liest die Blockdaten
          /// </summary>
-         public DataBlock Data;
+         /// <param name="br"></param>
+         public new void Read(BinaryReaderWriter br) {
+            Offset = br.ReadUInt32();
+            Recordsize = br.ReadUInt16();
+            Length = br.ReadUInt32();
+         }
+
          /// <summary>
-         /// Länge eines einzelnen Tabelleneintrages
+         /// schreibt die Blockdaten
          /// </summary>
-         public UInt16 iItemLength;
-         /// <summary>
-         /// Anzahl der Tabelleneinträge
-         /// </summary>
-         public int iCount;
-
-         protected void BaseRead(BinaryReaderWriter br) {
-            Data.Offset = br.ReadUInt32();             // Offset Pointer to type data, offset block for POIS
-            iItemLength = br.ReadUInt16();             // Denotes number of bytes for above pointer block ie 3 or 4
-            Data.Length = br.ReadUInt32();             // Number of pois as a multiple of Poidata.iBytes
-            iCount = iItemLength > 0 ? (int)Data.Length / iItemLength : 0;
+         /// <param name="bw"></param>
+         public new void Write(BinaryReaderWriter bw) {
+            bw.Write(Offset);
+            bw.Write(Recordsize);
+            bw.Write(Length);
          }
 
-         protected void BaseWrite(BinaryReaderWriter bw) {
-            bw.Write(Data.Offset);
-            bw.Write(iItemLength);
-            bw.Write(Data.Length);
-         }
-
-         public DataTable() {
-            Data = new DataBlock();
-            iItemLength = 0;
-            iCount = 0;
-         }
       }
-
-      class POIDataTable : DataTable {
-
-         public POIDataTable()
-            : base() {
-            iItemLength = 4;
-         }
-
-         public POIDataTable(BinaryReaderWriter br)
-            : this() {
-            BaseRead(br);
-         }
-
-         public void Write(BinaryReaderWriter bw) {
-            BaseWrite(bw);
-         }
-
-         public override string ToString() {
-            return string.Format("Data {0}, Bytes {1}, Count {2}", Data, iItemLength, iCount);
-         }
-      }
-
-      class PolylineDataTable : DataTable {
-
-         public PolylineDataTable()
-            : base() {
-            iItemLength = 4;
-         }
-
-         public PolylineDataTable(BinaryReaderWriter br)
-            : this() {
-            BaseRead(br);
-         }
-
-         public void Write(BinaryReaderWriter bw) {
-            BaseWrite(bw);
-         }
-
-         public override string ToString() {
-            return string.Format("Data 0x{0:x}, Bytes {1}, Count {2}", Data, iItemLength, iCount);
-         }
-      }
-
-      class PolygoneDataTable : DataTable {
-
-         public DataBlock DraworderBlock;
-         public UInt16 iDraworderItemLength;
-
-         public PolygoneDataTable()
-            : base() {
-            iItemLength = 4;
-            iDraworderItemLength = 0;
-            DraworderBlock = new DataBlock();
-         }
-
-         public PolygoneDataTable(BinaryReaderWriter br)
-            : this() {
-            BaseRead(br);
-
-            DraworderBlock.Offset = br.ReadUInt32();  // Offset to Polygons draworder block ( generally 5 bytes for each polygon or start of new level)
-            iDraworderItemLength = br.ReadUInt16();   // sets number of bytes for each polygon (ie 5) in Polygonedata.DraworderBlock
-            DraworderBlock.Length = br.ReadUInt32();  // length of draworder block
-         }
-
-         public void Write(BinaryReaderWriter bw) {
-            BaseWrite(bw);
-            bw.Write(DraworderBlock.Offset);
-            bw.Write(iDraworderItemLength);
-            bw.Write(DraworderBlock.Length);
-         }
-
-         public override string ToString() {
-            return string.Format("Data {0}, Bytes {1}, Count {2}, Draworder {3}, BytesForEachPolygon {4}",
-               Data, iItemLength, iCount, DraworderBlock, iDraworderItemLength);
-         }
-      }
-
-      DataBlock PointDatablock;
-      DataBlock PolygoneDatablock;
-      DataBlock PolylineDatablock;
-
-      POIDataTable PointDatatable;
-      PolylineDataTable PolylineDatatable;
-      PolygoneDataTable PolygoneDatatable;
 
       /// <summary>
       /// Codepage, u.a.:
@@ -177,74 +95,111 @@ namespace GarminCore.Files {
       /// <para>1257, Baltic</para>
       /// <para>1258, Vietnamese</para>
       /// </summary>
-      UInt16 _Codepage = 1252;
+      UInt16 codepage = 1252;
+
+      /// <summary>
+      /// Datenblock für POI's
+      /// </summary>
+      public DataBlock PointDatablock { get; private set; }
+      /// <summary>
+      /// Datenblock für Polygone
+      /// </summary>
+      public DataBlock PolygoneDatablock { get; private set; }
+      /// <summary>
+      /// Datenblock für Polylines
+      /// </summary>
+      public DataBlock PolylineDatablock { get; private set; }
+
       /// <summary>
       /// Codepage für Texte (z.B. 1252)
       /// </summary>
       public UInt16 Codepage {
          get {
-            return _Codepage;
+            return codepage;
          }
          set {
-            if (value < 1250 || 1258 < value)
-               throw new Exception("Die Codepage muß im Bereich 1250 bis 1258 sein");
-            _Codepage = value;
+            //if (value < 1250 || 1258 < value)
+            //   throw new Exception("Die Codepage muß im Bereich 1250 bis 1258 sein");
+            codepage = value;
          }
       }
 
-      UInt16 _FamilyID = 0;
       /// <summary>
       /// zur eindeutigen Kennzeichnung für eine bestimmte Karte mit der gleichen ID
       /// </summary>
-      public UInt16 FamilyID {
-         get {
-            return _FamilyID;
-         }
-         set {
-            _FamilyID = value;
-         }
-      }
+      public UInt16 FamilyID { get; set; }
 
-      UInt16 _ProductID = 1;
       /// <summary>
       /// Produkt-ID (i.A. 1)
       /// </summary>
-      public UInt16 ProductID {
-         get {
-            return _ProductID;
-         }
-         set {
-            _ProductID = value;
-         }
-      }
+      public UInt16 ProductID { get; set; }
 
-      POIDataTable NT_PointDatabtable;
-      byte nt_unknown_0x65;
-      DataBlock NT_PointDatablock;
-      UInt32 nt_unknown_0x6E;
-      DataBlock NT_PointLabelblock;
-      UInt32 nt_unknown_0x7A;
-      UInt32 nt_unknown_0x7E;
-      DataBlock NT_LabelblockTable1;
-      UInt32 nt_unknown_0x8A;
-      UInt32 nt_unknown_0x8E;
-      DataBlock NT_LabelblockTable2;
-      UInt16 nt_unknown_0x9A;
-      byte[] nt_unknown_0x9C = new byte[8];
-      byte[] nt_unknown_0xA4 = new byte[10];
-      byte[] nt_unknown_0xAE;
+      /// <summary>
+      /// Tabelle für POI's
+      /// </summary>
+      public TypDataBlockWithRecordsize PointTableBlock { get; private set; }
+      /// <summary>
+      /// Tabelle für Polyline
+      /// </summary>
+      public TypDataBlockWithRecordsize PolylineTableBlock { get; private set; }
+      /// <summary>
+      /// Tabelle für Polygone
+      /// </summary>
+      public TypDataBlockWithRecordsize PolygoneTableBlock { get; private set; }
+      /// <summary>
+      /// Tabelle für Draworder der Polygone
+      /// </summary>
+      public TypDataBlockWithRecordsize PolygoneDraworderTableBlock { get; private set; }
+
+      /// <summary>
+      /// Liste der <see cref="TableItem"/> für Polygone (nach dem Einlesen)
+      /// </summary>
+      public List<TableItem> PolygonTableItems { get; private set; }
+      /// <summary>
+      /// Liste der <see cref="TableItem"/> für Polylines (nach dem Einlesen)
+      /// </summary>
+      public List<TableItem> PolylineTableItems { get; private set; }
+      /// <summary>
+      /// Liste der <see cref="TableItem"/> für POI's (nach dem Einlesen)
+      /// </summary>
+      public List<TableItem> PointTableItems { get; private set; }
+      /// <summary>
+      /// Liste der <see cref="PolygonDraworderTableItem"/> für die Zeichenreihenfolge der Polygone (nach dem Einlesen)
+      /// </summary>
+      public List<PolygonDraworderTableItem> PolygonDraworderTableItems { get; private set; }
+
+      // ----------------- NT-Daten -----------------
+
+      public TypDataBlockWithRecordsize NT_PointTableBlock { get; private set; }
+      public byte nt_unknown_0x65 { get; private set; }
+      public DataBlock NT_PointDatablock { get; private set; }
+      public UInt32 nt_unknown_0x6E { get; private set; }
+      public DataBlock NT_PointLabelblock { get; private set; }
+      public UInt32 nt_unknown_0x7A { get; private set; }
+      public UInt32 nt_unknown_0x7E { get; private set; }
+      public DataBlock NT_LabelblockTable1 { get; private set; }
+      public UInt32 nt_unknown_0x8A { get; private set; }
+      public UInt32 nt_unknown_0x8E { get; private set; }
+      public DataBlock NT_LabelblockTable2 { get; private set; }
+      public UInt16 nt_unknown_0x9A { get; private set; }
+      public byte[] nt_unknown_0x9C { get; private set; }
+      public byte[] nt_unknown_0xA4 { get; private set; }
+      public byte[] nt_unknown_0xAE { get; private set; }
 
       public enum Headertyp {
          Unknown,
-         Standard, // bis 0x5B
-         NT_6E,
-         NT_9C,
-         NT_A4,
-         NT_AE,
-         NT_x,
+         /// <summary>
+         /// Headerlänge 0x5B
+         /// </summary>
+         Standard,
+         Type_6E,
+         Type_9C,
+         Type_A4,
+         Type_AE,
       }
 
       Headertyp _HeaderTyp = Headertyp.Standard;
+
       public Headertyp HeaderTyp {
          get {
             return _HeaderTyp;
@@ -256,55 +211,20 @@ namespace GarminCore.Files {
                   Headerlength = 0x5b;
                   break;
 
-               case Headertyp.NT_6E:
+               case Headertyp.Type_6E:
                   Headerlength = 0x6E;
-                  nt_unknown_0x65 = 0x1f;
-                  PointDatablock = new DataBlock();
-                  PolygoneDatablock = new DataBlock();
-                  PolylineDatablock = new DataBlock();
                   break;
 
-               case Headertyp.NT_9C:
+               case Headertyp.Type_9C:
                   Headerlength = 0x9C;
-                  nt_unknown_0x6E = nt_unknown_0x7A = nt_unknown_0x7E = nt_unknown_0x8A = nt_unknown_0x8E = nt_unknown_0x9A = 0;
-                  PointDatablock = new DataBlock();
-                  PolygoneDatablock = new DataBlock();
-                  PolylineDatablock = new DataBlock();
                   break;
 
-               case Headertyp.NT_A4:
+               case Headertyp.Type_A4:
                   Headerlength = 0xA4;
-                  nt_unknown_0x6E = nt_unknown_0x7A = nt_unknown_0x7E = nt_unknown_0x8A = nt_unknown_0x8E = nt_unknown_0x9A = 0;
-                  PointDatablock = new DataBlock();
-                  PolygoneDatablock = new DataBlock();
-                  PolylineDatablock = new DataBlock();
                   break;
 
-               case Headertyp.NT_AE:
+               case Headertyp.Type_AE:
                   Headerlength = 0xAE;
-                  nt_unknown_0x65 = 0x1f;
-                  nt_unknown_0x6E = nt_unknown_0x7A = nt_unknown_0x7E = nt_unknown_0x8A = nt_unknown_0x8E = nt_unknown_0x9A = 0;
-                  for (int i = 0; i < nt_unknown_0x9C.Length; i++)
-                     nt_unknown_0x9C[i] = 0;
-                  for (int i = 0; i < nt_unknown_0xA4.Length; i++)
-                     nt_unknown_0xA4[i] = 0;
-                  PointDatablock = new DataBlock();
-                  PolygoneDatablock = new DataBlock();
-                  PolylineDatablock = new DataBlock();
-                  break;
-
-               case Headertyp.NT_x:
-                  if (Headerlength < 0xAE)
-                     Headerlength = 0xAE;
-                  nt_unknown_0x65 = 0x1f;
-                  nt_unknown_0x6E = nt_unknown_0x7A = nt_unknown_0x7E = nt_unknown_0x8A = nt_unknown_0x8E = nt_unknown_0x9A = 0;
-                  for (int i = 0; i < nt_unknown_0x9C.Length; i++)
-                     nt_unknown_0x9C[i] = 0;
-                  for (int i = 0; i < nt_unknown_0xA4.Length; i++)
-                     nt_unknown_0xA4[i] = 0;
-                  PointDatablock = new DataBlock();
-                  PolygoneDatablock = new DataBlock();
-                  PolylineDatablock = new DataBlock();
                   break;
 
                case Headertyp.Unknown:
@@ -333,11 +253,6 @@ namespace GarminCore.Files {
       protected SortedList<POI, byte> poi;
 
       /// <summary>
-      /// Sammlung aller Fehler, die sich im Relaxed-Modus ergeben haben
-      /// </summary>
-      public string RelaxedModeErrors { get; private set; }
-
-      /// <summary>
       /// liefert die Anzahl der Punkte in der internen Liste
       /// </summary>
       public int PoiCount { get { return poi.Count; } }
@@ -350,7 +265,11 @@ namespace GarminCore.Files {
       /// </summary>
       public int PolylineCount { get { return polyline.Count; } }
 
-      protected byte[] NTData;
+      /// <summary>
+      /// Sammlung aller Fehler, die sich im Relaxed-Modus ergeben haben
+      /// </summary>
+      public string RelaxedModeErrors { get; private set; }
+
 
       public StdFile_TYP()
          : base("TYP") {
@@ -365,12 +284,13 @@ namespace GarminCore.Files {
          PolygoneDatablock = new DataBlock();
          PolylineDatablock = new DataBlock();
 
-         PointDatatable = new POIDataTable();
-         PolylineDatatable = new PolylineDataTable();
-         PolygoneDatatable = new PolygoneDataTable();
+         PointTableBlock = new TypDataBlockWithRecordsize();
+         PolylineTableBlock = new TypDataBlockWithRecordsize();
+         PolygoneTableBlock = new TypDataBlockWithRecordsize();
+         PolygoneDraworderTableBlock = new TypDataBlockWithRecordsize();
 
          // für NT-Format
-         NT_PointDatabtable = new POIDataTable();
+         NT_PointTableBlock = new TypDataBlockWithRecordsize();
          NT_PointDatablock = new DataBlock();
          NT_PointLabelblock = new DataBlock();
 
@@ -380,6 +300,18 @@ namespace GarminCore.Files {
          polygone = new SortedList<Polygone, byte>();
          polyline = new SortedList<Polyline, byte>();
          poi = new SortedList<POI, byte>();
+
+         nt_unknown_0x65 = 0x1f;
+
+         nt_unknown_0x6E =
+         nt_unknown_0x7A =
+         nt_unknown_0x7E =
+         nt_unknown_0x8A =
+         nt_unknown_0x8E =
+         nt_unknown_0x9A = 0;
+
+         nt_unknown_0x9C = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0 };
+         nt_unknown_0xA4 = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
       }
 
       public StdFile_TYP(BinaryReaderWriter br)
@@ -406,7 +338,7 @@ namespace GarminCore.Files {
       }
 
       public override void ReadHeader(BinaryReaderWriter br) {
-         base.ReadCommonHeader(br, Typ);
+         base.ReadCommonHeader(br, Type);
 
          if (Unknown_0x0C != 0x01) // Bedeutung unklar
             throw new Exception("Das ist keine Garmin-TYP-Datei.");
@@ -424,23 +356,24 @@ namespace GarminCore.Files {
          ProductID = br.ReadUInt16();
 
          // Infos zu den Tabellen für POI, Polyline und Polygon einlesen (Offset, Länge, Länge der Tabelleneinträge)
-         PointDatatable = new POIDataTable(br);
-         PolylineDatatable = new PolylineDataTable(br);
-         PolygoneDatatable = new PolygoneDataTable(br);
+         PointTableBlock = new TypDataBlockWithRecordsize(br);
+         PolylineTableBlock = new TypDataBlockWithRecordsize(br);
+         PolygoneTableBlock = new TypDataBlockWithRecordsize(br);
+         PolygoneDraworderTableBlock = new TypDataBlockWithRecordsize(br);
 
          htyp = Headertyp.Standard;
 
          // ev. kommt noch NT-Zeugs
          if (Headerlength > 0x5b) { // Extra icons
-            htyp = Headertyp.NT_6E;
+            htyp = Headertyp.Type_6E;
 
             // spez. Daten für NT1-Punkte
-            NT_PointDatabtable = new POIDataTable(br);
+            NT_PointTableBlock = new TypDataBlockWithRecordsize(br);
             nt_unknown_0x65 = br.ReadByte();               // sollte wohl immer 0x1F sein (?), auch 0x0D
             NT_PointDatablock.Read(br);
 
             if (Headerlength > 0x6e) {           // Extra POI Labels
-               htyp = Headertyp.NT_9C;
+               htyp = Headertyp.Type_9C;
 
                nt_unknown_0x6E = br.ReadUInt32(); // 0
                NT_PointLabelblock.Read(br);       // Block-Offset und -Länge
@@ -453,17 +386,17 @@ namespace GarminCore.Files {
                nt_unknown_0x9A = br.ReadUInt16(); // 0x12
 
                if (Headerlength > 0x9C) { // Indexing a selection of POIs
-                  htyp = Headertyp.NT_A4;
+                  htyp = Headertyp.Type_A4;
 
                   br.ReadBytes(nt_unknown_0x9C); // scheint nochmal der gleiche Datenblock wie LabelblockTable2 zu sein
 
                   if (Headerlength > 0xA4) { // Active Routing
-                     htyp = Headertyp.NT_AE;
+                     htyp = Headertyp.Type_AE;
 
                      br.ReadBytes(nt_unknown_0xA4);
 
                      if (Headerlength > 0xAE) {
-                        htyp = Headertyp.NT_x;
+                        htyp = Headertyp.Unknown;
 
                         nt_unknown_0xA4 = br.ReadBytes(Headerlength - (int)br.Position); // Rest einlesen
 
@@ -472,13 +405,13 @@ namespace GarminCore.Files {
                }
             }
          }
-         HeaderTyp = htyp;
+         _HeaderTyp = htyp;
       }
 
       protected override void ReadSections(BinaryReaderWriter br) {
          // --------- Dateiabschnitte für die Rohdaten bilden (nur NT) ---------
          Filesections.AddSection((int)InternalFileSections.NT_PointDatablock, new DataBlock(NT_PointDatablock));
-         Filesections.AddSection((int)InternalFileSections.NT_PointDatabtable, new DataBlock(NT_PointDatabtable.Data));
+         Filesections.AddSection((int)InternalFileSections.NT_PointDatabtable, new DataBlock(NT_PointTableBlock));
          Filesections.AddSection((int)InternalFileSections.NT_PointLabelblock, new DataBlock(NT_PointLabelblock));
          Filesections.AddSection((int)InternalFileSections.NT_LabelblockTable1, new DataBlock(NT_LabelblockTable1));
          Filesections.AddSection((int)InternalFileSections.NT_LabelblockTable2, new DataBlock(NT_LabelblockTable2));
@@ -512,58 +445,58 @@ namespace GarminCore.Files {
       /// </summary>
       /// <param name="br"></param>
       /// <param name="bRelaxed"></param>
-      void Decode_PolygoneDatatable(BinaryReaderWriter br, bool bRelaxed) {
-         if (PolygoneDatatable.iCount > 0) {
+      void Decode_PolygoneData(BinaryReaderWriter br, bool bRelaxed) {
+         if (PolygoneTableBlock.Count > 0) {
             StringBuilder sb = new StringBuilder();
 
             // Tabelle für Typen und Offsets zu den eigentlichen Daten einlesen
-            List<TableItem> dataitem = new List<TableItem>();
-            br.Seek(PolygoneDatatable.Data.Offset);
-            for (int i = 0; i < PolygoneDatatable.iCount; i++)
-               dataitem.Add(new TableItem(br, PolygoneDatatable.iItemLength));
+            PolygonTableItems = new List<TableItem>();
+            br.Seek(PolygoneTableBlock.Offset);
+            for (int i = 0; i < PolygoneTableBlock.Count; i++)
+               PolygonTableItems.Add(new TableItem(br, PolygoneTableBlock.Recordsize));
 
             // Draworder-Tabelle einlesen
-            List<PolygonDraworderTableItem> polygondraworder = new List<PolygonDraworderTableItem>();
+            PolygonDraworderTableItems = new List<PolygonDraworderTableItem>();
             uint iLevel = 1;
-            br.Seek(PolygoneDatatable.DraworderBlock.Offset);
-            int blocklen = (int)PolygoneDatatable.DraworderBlock.Length;
+            br.Seek(PolygoneDraworderTableBlock.Offset);
+            int blocklen = (int)PolygoneDraworderTableBlock.Length;
             if (blocklen > 0)
-               while (blocklen >= PolygoneDatatable.iDraworderItemLength) {
-                  PolygonDraworderTableItem dro = new PolygonDraworderTableItem(br, PolygoneDatatable.iDraworderItemLength, iLevel);
-                  blocklen -= PolygoneDatatable.iDraworderItemLength;
-                  if (dro.Typ != 0)
-                     polygondraworder.Add(dro);
-                  else
+               while (blocklen >= PolygoneDraworderTableBlock.Recordsize) {
+                  PolygonDraworderTableItem dro = new PolygonDraworderTableItem(br, PolygoneDraworderTableBlock.Recordsize, iLevel);
+                  blocklen -= PolygoneDraworderTableBlock.Recordsize;
+                  PolygonDraworderTableItems.Add(dro);
+                  if (dro.Type == 0) // nächster Level
                      iLevel++;
                }
 
             // Tabelle der Polygondaten einlesen
             polygone.Clear();
-            for (int i = 0; i < dataitem.Count; i++) {
-               br.Seek(dataitem[i].Offset + PolygoneDatablock.Offset);
-               int datalen = i < dataitem.Count - 1 ?
-                                    dataitem[i + 1].Offset - dataitem[i].Offset :
-                                    (int)PolygoneDatatable.Data.Offset - (dataitem[i].Offset + (int)PolygoneDatablock.Offset);
+            for (int i = 0; i < PolygonTableItems.Count; i++) {
+               br.Seek(PolygonTableItems[i].Offset + PolygoneDatablock.Offset);
+               int datalen = i < PolygonTableItems.Count - 1 ?
+                                    PolygonTableItems[i + 1].Offset - PolygonTableItems[i].Offset :
+                                    (int)PolygoneTableBlock.Offset - (PolygonTableItems[i].Offset + (int)PolygoneDatablock.Offset);
                try {
                   long startpos = br.Position;
-                  Polygone p = new Polygone(dataitem[i].Typ, dataitem[i].Subtyp);
+                  Polygone p = new Polygone(PolygonTableItems[i].Type, PolygonTableItems[i].Subtype);
                   p.Read(br);
                   Debug.WriteLineIf(startpos + datalen != br.Position,
                      string.Format("Diff. {0} der Datenlänge beim Lesen des Objektes 0x{1:x} 0x{2:x} (größer 0 bedeutet: zuviel gelesen)",
-                                    br.Position - (startpos + datalen), dataitem[i].Typ, dataitem[i].Subtyp));
-                  for (int j = 0; j < polygondraworder.Count; j++) {
-                     if (p.Typ == polygondraworder[j].Typ)
-                        for (int k = 0; k < polygondraworder[j].Subtypes.Count; k++)
-                           if (p.Subtyp == polygondraworder[j].Subtypes[k]) {
-                              p.Draworder = polygondraworder[j].Level;
-                              j = polygondraworder.Count;       // 2. Schleifenabbruch
+                                    br.Position - (startpos + datalen), PolygonTableItems[i].Type, PolygonTableItems[i].Subtype));
+                  // zugehörige Draworder suchen
+                  for (int j = 0; j < PolygonDraworderTableItems.Count; j++) {
+                     if (p.Type == PolygonDraworderTableItems[j].Type) // Haupttyp gefunden
+                        for (int k = 0; k < PolygonDraworderTableItems[j].Subtypes.Count; k++)
+                           if (p.Subtype == PolygonDraworderTableItems[j].Subtypes[k]) { // auch Subtyp gefunden
+                              p.Draworder = PolygonDraworderTableItems[j].Level;
+                              j = PolygonDraworderTableItems.Count;       // 2. Schleifenabbruch
                               break;
                            }
                   }
                   polygone.Add(p, 0);
                } catch (Exception ex) {
                   if (bRelaxed) {
-                     sb.AppendFormat("Fehler beim Einlesen von Polygon 0x{0:x2}, 0x{1:x2}: {2}", dataitem[i].Typ, dataitem[i].Subtyp, ex.Message);
+                     sb.AppendFormat("Fehler beim Einlesen von Polygon 0x{0:x2}, 0x{1:x2}: {2}", PolygonTableItems[i].Type, PolygonTableItems[i].Subtype, ex.Message);
                      sb.AppendLine();
                   } else
                      throw new Exception(ex.Message);
@@ -579,34 +512,34 @@ namespace GarminCore.Files {
       /// </summary>
       /// <param name="br"></param>
       /// <param name="bRelaxed"></param>
-      void Decode_PolylineDatatable(BinaryReaderWriter br, bool bRelaxed) {
-         if (PolylineDatatable.iCount > 0) {
+      void Decode_PolylineData(BinaryReaderWriter br, bool bRelaxed) {
+         if (PolylineTableBlock.Count > 0) {
             StringBuilder sb = new StringBuilder();
 
             // Tabelle für Typen und Offsets zu den eigentlichen Daten einlesen
-            List<TableItem> dataitem = new List<TableItem>();
-            br.Seek(PolylineDatatable.Data.Offset);
-            for (int i = 0; i < PolylineDatatable.iCount; i++)
-               dataitem.Add(new TableItem(br, PolylineDatatable.iItemLength));
+            PolylineTableItems = new List<TableItem>();
+            br.Seek(PolylineTableBlock.Offset);
+            for (int i = 0; i < PolylineTableBlock.Count; i++)
+               PolylineTableItems.Add(new TableItem(br, PolylineTableBlock.Recordsize));
 
             // Tabelle der Polylinedaten einlesen
             polyline.Clear();
-            for (int i = 0; i < dataitem.Count; i++) {
-               br.Seek(dataitem[i].Offset + PolylineDatablock.Offset);
-               int datalen = i < dataitem.Count - 1 ?
-                                    dataitem[i + 1].Offset - dataitem[i].Offset :
-                                    (int)PolylineDatatable.Data.Offset - (dataitem[i].Offset + (int)PolylineDatablock.Offset);
+            for (int i = 0; i < PolylineTableItems.Count; i++) {
+               br.Seek(PolylineTableItems[i].Offset + PolylineDatablock.Offset);
+               int datalen = i < PolylineTableItems.Count - 1 ?
+                                    PolylineTableItems[i + 1].Offset - PolylineTableItems[i].Offset :
+                                    (int)PolylineTableBlock.Offset - (PolylineTableItems[i].Offset + (int)PolylineDatablock.Offset);
                try {
                   long startpos = br.Position;
-                  Polyline p = new Polyline(dataitem[i].Typ, dataitem[i].Subtyp);
+                  Polyline p = new Polyline(PolylineTableItems[i].Type, PolylineTableItems[i].Subtype);
                   p.Read(br);
                   Debug.WriteLineIf(startpos + datalen != br.Position,
                      string.Format("Diff. {0} der Datenlänge beim Lesen des Objektes 0x{1:x} 0x{2:x} (größer 0 bedeutet: zuviel gelesen)",
-                                    br.Position - (startpos + datalen), dataitem[i].Typ, dataitem[i].Subtyp));
+                                    br.Position - (startpos + datalen), PolylineTableItems[i].Type, PolylineTableItems[i].Subtype));
                   polyline.Add(p, 0);
                } catch (Exception ex) {
                   if (bRelaxed) {
-                     sb.AppendFormat("Fehler beim Einlesen von Linie 0x{0:x2}, 0x{1:x2}: {2}", dataitem[i].Typ, dataitem[i].Subtyp, ex.Message);
+                     sb.AppendFormat("Fehler beim Einlesen von Linie 0x{0:x2}, 0x{1:x2}: {2}", PolylineTableItems[i].Type, PolylineTableItems[i].Subtype, ex.Message);
                      sb.AppendLine();
                   } else
                      throw new Exception(ex.Message);
@@ -622,34 +555,34 @@ namespace GarminCore.Files {
       /// </summary>
       /// <param name="br"></param>
       /// <param name="bRelaxed"></param>
-      void Decode_POIDatatable(BinaryReaderWriter br, bool bRelaxed) {
-         if (PointDatatable.iCount > 0) {
+      void Decode_POIData(BinaryReaderWriter br, bool bRelaxed) {
+         if (PointTableBlock.Count > 0) {
             StringBuilder sb = new StringBuilder();
 
             // Tabelle für Typen und Offsets zu den eigentlichen Daten einlesen
-            List<TableItem> dataitem = new List<TableItem>();
-            br.Seek(PointDatatable.Data.Offset);
-            for (int i = 0; i < PointDatatable.iCount; i++)
-               dataitem.Add(new TableItem(br, PointDatatable.iItemLength));
+            PointTableItems = new List<TableItem>();
+            br.Seek(PointTableBlock.Offset);
+            for (int i = 0; i < PointTableBlock.Count; i++)
+               PointTableItems.Add(new TableItem(br, PointTableBlock.Recordsize));
 
             // Tabelle der POI-Daten einlesen
             poi.Clear();
-            for (int i = 0; i < dataitem.Count; i++) {
-               br.Seek(dataitem[i].Offset + PointDatablock.Offset);
-               int datalen = i < dataitem.Count - 1 ?
-                                    dataitem[i + 1].Offset - dataitem[i].Offset :
-                                    (int)PointDatatable.Data.Offset - (dataitem[i].Offset + (int)PointDatablock.Offset);
+            for (int i = 0; i < PointTableItems.Count; i++) {
+               br.Seek(PointTableItems[i].Offset + PointDatablock.Offset);
+               int datalen = i < PointTableItems.Count - 1 ?
+                                    PointTableItems[i + 1].Offset - PointTableItems[i].Offset :
+                                    (int)PointTableBlock.Offset - (PointTableItems[i].Offset + (int)PointDatablock.Offset);
                try {
                   long startpos = br.Position;
-                  POI p = new POI(dataitem[i].Typ, dataitem[i].Subtyp);
+                  POI p = new POI(PointTableItems[i].Type, PointTableItems[i].Subtype);
                   p.Read(br);
                   Debug.WriteLineIf(startpos + datalen != br.BaseStream.Position,
                      string.Format("Diff. {0} der Datenlänge beim Lesen des Objektes 0x{1:x} 0x{2:x} (größer 0 bedeutet: zuviel gelesen)",
-                                    br.Position - (startpos + datalen), dataitem[i].Typ, dataitem[i].Subtyp));
+                                    br.Position - (startpos + datalen), PointTableItems[i].Type, PointTableItems[i].Subtype));
                   poi.Add(p, 0);
                } catch (Exception ex) {
                   if (bRelaxed) {
-                     sb.AppendFormat("Fehler beim Einlesen von Punkt 0x{0:x2}, 0x{1:x2}: {2}", dataitem[i].Typ, dataitem[i].Subtyp, ex.Message);
+                     sb.AppendFormat("Fehler beim Einlesen von Punkt 0x{0:x2}, 0x{1:x2}: {2}", PointTableItems[i].Type, PointTableItems[i].Subtype, ex.Message);
                      sb.AppendLine();
                   } else
                      throw new Exception(ex.Message);
@@ -675,12 +608,12 @@ namespace GarminCore.Files {
          RelaxedModeErrors = "";
          bool bRelaxed = true;
 
-         Decode_PolygoneDatatable(br, bRelaxed);
-         Decode_PolylineDatatable(br, bRelaxed);
-         Decode_POIDatatable(br, bRelaxed);
+         Decode_PolygoneData(br, bRelaxed);
+         Decode_PolylineData(br, bRelaxed);
+         Decode_POIData(br, bRelaxed);
 
       }
-      
+
       public override void Read(BinaryReaderWriter br, bool raw = false, uint headeroffset = 0, uint gapoffset = 0) {
          nonvirtual_Read(br, raw, headeroffset, gapoffset);
       }
@@ -698,12 +631,13 @@ namespace GarminCore.Files {
          bw.Write(FamilyID);
          bw.Write(ProductID);
 
-         PointDatatable.Write(bw);
-         PolylineDatatable.Write(bw);
-         PolygoneDatatable.Write(bw);
+         PointTableBlock.Write(bw);
+         PolylineTableBlock.Write(bw);
+         PolygoneTableBlock.Write(bw);
+         PolygoneDraworderTableBlock.Write(bw);
 
          if (Headerlength > 0x5b) {
-            NT_PointDatabtable.Write(bw);
+            NT_PointTableBlock.Write(bw);
             bw.Write(nt_unknown_0x65);
             NT_PointDatablock.Write(bw);
 
@@ -735,14 +669,13 @@ namespace GarminCore.Files {
          List<TableItem> table = new List<TableItem>();
 
          // ----- Polygonblock schreiben
-         PolygoneDatatable.iCount = polygone.Count;
          // sollte besser aus der max. notwendigen Offsetgröße bestimmt werden (5 --> Offset max. 3 Byte)
-         PolygoneDatatable.iItemLength = 5;
+         PolygoneTableBlock.Recordsize = 5;
          PolygoneDatablock.Offset = (uint)bw.Position;
          foreach (Polygone p in polygone.Keys) {
             TableItem tableitem = new TableItem();
-            tableitem.Typ = p.Typ;
-            tableitem.Subtyp = p.Subtyp;
+            tableitem.Type = p.Type;
+            tableitem.Subtype = p.Subtype;
             tableitem.Offset = (int)(bw.Position - PolygoneDatablock.Offset);
             table.Add(tableitem);
             p.Write(bw, Codepage);
@@ -750,24 +683,23 @@ namespace GarminCore.Files {
          PolygoneDatablock.Length = (uint)bw.Position - PolygoneDatablock.Offset;
 
          // ----- Polygontabelle schreiben
-         PolygoneDatatable.Data.Offset = (uint)bw.Position;    // Standort der Tabelle
+         PolygoneTableBlock.Offset = (uint)bw.Position;    // Standort der Tabelle
          for (int i = 0; i < table.Count; i++)
-            table[i].Write(bw, PolygoneDatatable.iItemLength);
-         PolygoneDatatable.Data.Length = (uint)bw.Position - PolygoneDatatable.Data.Offset;
+            table[i].Write(bw, PolygoneTableBlock.Recordsize);
+         PolygoneTableBlock.Length = (uint)bw.Position - PolygoneTableBlock.Offset;
       }
 
       void Encode_PolylineData(BinaryReaderWriter bw) {
          List<TableItem> table = new List<TableItem>();
 
-         PolylineDatatable.iCount = polyline.Count;
          // sollte besser aus der max. notwendigen Offsetgröße bestimmt werden (5 --> Offset max. 3 Byte)
-         PolylineDatatable.iItemLength = 5;
+         PolylineTableBlock.Recordsize = 5;
          PolylineDatablock.Offset = (uint)bw.Position;
          table.Clear();
          foreach (Polyline p in polyline.Keys) {
             TableItem tableitem = new TableItem();
-            tableitem.Typ = p.Typ;
-            tableitem.Subtyp = p.Subtyp;
+            tableitem.Type = p.Type;
+            tableitem.Subtype = p.Subtype;
             tableitem.Offset = (int)(bw.Position - PolylineDatablock.Offset);
             table.Add(tableitem);
             p.Write(bw, Codepage);
@@ -775,25 +707,24 @@ namespace GarminCore.Files {
          PolylineDatablock.Length = (uint)bw.Position - PolylineDatablock.Offset;
 
          // ----- Polylinetabelle schreiben
-         PolylineDatatable.Data.Offset = (uint)bw.Position;    // Standort der Tabelle
+         PolylineTableBlock.Offset = (uint)bw.Position;    // Standort der Tabelle
          for (int i = 0; i < table.Count; i++)
-            table[i].Write(bw, PolylineDatatable.iItemLength);
-         PolylineDatatable.Data.Length = (uint)bw.Position - PolylineDatatable.Data.Offset;
+            table[i].Write(bw, PolylineTableBlock.Recordsize);
+         PolylineTableBlock.Length = (uint)bw.Position - PolylineTableBlock.Offset;
       }
 
       void Encode_POIData(BinaryReaderWriter bw) {
          List<TableItem> table = new List<TableItem>();
 
          // ----- POI-Block schreiben
-         PointDatatable.iCount = poi.Count;
          // sollte besser aus der max. notwendigen Offsetgröße bestimmt werden (5 --> Offset max. 3 Byte)
-         PointDatatable.iItemLength = 5;
+         PointTableBlock.Recordsize = 5;
          PointDatablock.Offset = (uint)bw.Position;
          table.Clear();
          foreach (POI p in poi.Keys) {
             TableItem tableitem = new TableItem();
-            tableitem.Typ = p.Typ;
-            tableitem.Subtyp = p.Subtyp;
+            tableitem.Type = p.Type;
+            tableitem.Subtype = p.Subtype;
             tableitem.Offset = (int)(bw.Position - PointDatablock.Offset);
             table.Add(tableitem);
             p.Write(bw, Codepage);
@@ -801,10 +732,10 @@ namespace GarminCore.Files {
          PointDatablock.Length = (uint)bw.Position - PointDatablock.Offset;
 
          // ----- POI-Tabelle schreiben
-         PointDatatable.Data.Offset = (uint)bw.Position;    // Standort der Tabelle
+         PointTableBlock.Offset = (uint)bw.Position;    // Standort der Tabelle
          for (int i = 0; i < table.Count; i++)
-            table[i].Write(bw, PointDatatable.iItemLength);
-         PointDatatable.Data.Length = (uint)bw.Position - PointDatatable.Data.Offset;
+            table[i].Write(bw, PointTableBlock.Recordsize);
+         PointTableBlock.Length = (uint)bw.Position - PointTableBlock.Offset;
       }
 
       void Encode_Draworder(BinaryReaderWriter bw) {
@@ -817,22 +748,22 @@ namespace GarminCore.Files {
                draworderlist.Add(p.Draworder, typelist);
             }
             SortedList<uint, uint> subtypelist;
-            if (!typelist.TryGetValue(p.Typ, out subtypelist)) {
+            if (!typelist.TryGetValue(p.Type, out subtypelist)) {
                subtypelist = new SortedList<uint, uint>();
-               typelist.Add(p.Typ, subtypelist);
+               typelist.Add(p.Type, subtypelist);
             }
-            subtypelist.Add(p.Subtyp, 0);
+            subtypelist.Add(p.Subtype, 0);
 
          }
 
-         PolygoneDatatable.iDraworderItemLength = 5;
-         PolygoneDatatable.DraworderBlock.Offset = (uint)bw.Position;
+         PolygoneDraworderTableBlock.Recordsize = 5;
+         PolygoneDraworderTableBlock.Offset = (uint)bw.Position;
          uint olddraworder = 0;
 
          foreach (uint draworder in draworderlist.Keys) {
             while (olddraworder > 0 &&
                    draworder != olddraworder) {                  // Kennung für Erhöhung der Draworder schreiben
-               new PolygonDraworderTableItem(0, 0).Write(bw, PolygoneDatatable.iDraworderItemLength);
+               new PolygonDraworderTableItem(0, 0).Write(bw, PolygoneDraworderTableBlock.Recordsize);
                olddraworder++;
             }
             olddraworder = draworder;
@@ -845,10 +776,10 @@ namespace GarminCore.Files {
 
                foreach (uint subtype in subtypelist.Keys)
                   ti.Subtypes.Add(subtype);
-               ti.Write(bw, PolygoneDatatable.iDraworderItemLength);
+               ti.Write(bw, PolygoneDraworderTableBlock.Recordsize);
             }
          }
-         PolygoneDatatable.DraworderBlock.Length = (uint)bw.Position - PolygoneDatatable.DraworderBlock.Offset;
+         PolygoneDraworderTableBlock.Length = (uint)bw.Position - PolygoneDraworderTableBlock.Offset;
       }
 
       public override void Encode_Sections() {
@@ -876,7 +807,7 @@ namespace GarminCore.Files {
 
          Filesections.AdjustSections(DataOffset);     // lückenlos ausrichten
 
-         NT_PointDatabtable.Data = new DataBlock(Filesections.GetPosition((int)InternalFileSections.NT_PointDatabtable));
+         NT_PointTableBlock = new TypDataBlockWithRecordsize(Filesections.GetPosition((int)InternalFileSections.NT_PointDatabtable));
          NT_PointDatablock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.NT_PointDatablock));
          NT_PointLabelblock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.NT_PointLabelblock));
          NT_LabelblockTable1 = new DataBlock(Filesections.GetPosition((int)InternalFileSections.NT_LabelblockTable1));
@@ -1072,8 +1003,8 @@ namespace GarminCore.Files {
              (ge is POI && GetPoi(typ, subtyp) != null))
             return false;
          Remove(ge);
-         ge.Typ = typ;
-         ge.Subtyp = subtyp;
+         ge.Type = typ;
+         ge.Subtype = subtyp;
          Insert(ge);
          return true;
       }

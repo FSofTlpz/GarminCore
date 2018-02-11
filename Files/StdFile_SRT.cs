@@ -115,6 +115,14 @@ namespace GarminCore.Files {
       public string Description;
       public SortHeader Sortheader;
 
+      /// <summary>
+      /// liefert den PostHeader-Datenbereich
+      /// </summary>
+      /// <returns></returns>
+      public DataBlock PostHeaderDataBlock { get; private set; }
+      public DataBlock DescriptionBlock { get; private set; }
+      public DataBlock CharacterLookupTableBlock { get; private set; }
+
 
       public StdFile_SRT()
          : base("SRT") {
@@ -128,7 +136,7 @@ namespace GarminCore.Files {
       }
 
       public override void ReadHeader(BinaryReaderWriter br) {
-         base.ReadCommonHeader(br, Typ);
+         base.ReadCommonHeader(br, Type);
 
          Filesections.ClearSections();
 
@@ -137,7 +145,7 @@ namespace GarminCore.Files {
 
          if (Headerlength > 0x1D) {       // i.A. 0x001D; auch 0x25 gesehen mit 8 zusätzlichen Byte: 00 00 35 00 00 00 10 00
 
-            Unknown_x1D = new byte[Headerlength - 0xCE];
+            Unknown_x1D = new byte[Headerlength - 0x1D];
             br.ReadBytes(Unknown_x1D);
 
          }
@@ -145,14 +153,19 @@ namespace GarminCore.Files {
       }
 
       protected override void ReadSections(BinaryReaderWriter br) {
+         // --------- Dateiabschnitte für die Rohdaten bilden ---------
          Filesections.AddSection((int)InternalFileSections.ContentsBlock, new DataBlock(ContentsBlock));
-         if (GapOffset > HeaderOffset + Headerlength) // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
-            Filesections.AddSection((int)InternalFileSections.PostHeaderData, HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+
+         // GapOffset und DataOffset setzen
+         SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
+
+         if (GapOffset > HeaderOffset + Headerlength) { // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
+            PostHeaderDataBlock = new DataBlock(HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+            Filesections.AddSection((int)InternalFileSections.PostHeaderData, PostHeaderDataBlock);
+         }
 
          // Datenblöcke einlesen
          Filesections.ReadSections(br);
-
-         SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
 
          // Pos. der anderen beiden Datenblöcke ermitteln ...
          Decode_ContentsBlock(Filesections.GetSectionDataReader((int)InternalFileSections.ContentsBlock), new DataBlock(0, Filesections.GetLength((int)InternalFileSections.ContentsBlock)));
@@ -218,8 +231,10 @@ namespace GarminCore.Files {
       void Decode_ContentsBlock(BinaryReaderWriter br, DataBlock block) {
          if (br != null && block != null && block.Length > 0) {
             br.Seek(block.Offset);
-            Filesections.AddSection((int)InternalFileSections.DescriptionBlock, new DataBlock(br));
-            Filesections.AddSection((int)InternalFileSections.CharacterLookupTableBlock, new DataBlock(br));
+            DescriptionBlock = new DataBlock(br);
+            CharacterLookupTableBlock = new DataBlock(br);
+            Filesections.AddSection((int)InternalFileSections.DescriptionBlock, DescriptionBlock);
+            Filesections.AddSection((int)InternalFileSections.CharacterLookupTableBlock, CharacterLookupTableBlock);
          }
       }
 

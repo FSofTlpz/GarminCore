@@ -147,16 +147,16 @@ namespace GarminCore.Files {
                len += AreaList[i].DataLength;
 
             if (len > 0) {          // sonst Subdiv ohne Inhalt
-               int typs = 0;
+               int types = 0;
                if (PointList.Count > 0)
-                  typs++;
+                  types++;
                if (IdxPointList.Count > 0)
-                  typs++;
+                  types++;
                if (LineList.Count > 0)
-                  typs++;
+                  types++;
                if (AreaList.Count > 0)
-                  typs++;
-               len += (uint)((typs - 1) * 2);
+                  types++;
+               len += (uint)((types - 1) * 2);
             }
 
             return len;
@@ -301,39 +301,39 @@ namespace GarminCore.Files {
             DataBlock data_polylines = new DataBlock(UInt32.MaxValue, 0);
             DataBlock data_polygons = new DataBlock(UInt32.MaxValue, 0);
 
-            Queue<StdFile_TRE.SubdivInfoBasic.SubdivContent> offstyp = new Queue<StdFile_TRE.SubdivInfoBasic.SubdivContent>();
+            Queue<StdFile_TRE.SubdivInfoBasic.SubdivContent> offstype = new Queue<StdFile_TRE.SubdivInfoBasic.SubdivContent>();
 
             // Anzahl der nötigen Offsets ermitteln (dabei den Offset als Kennung auf 0 setzen)
-            int typs = 0;
+            int types = 0;
             if ((Content & StdFile_TRE.SubdivInfoBasic.SubdivContent.poi) != 0) {
                data_points.Offset = 0;
-               offstyp.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.poi);
-               typs++;
+               offstype.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.poi);
+               types++;
             }
             if ((Content & StdFile_TRE.SubdivInfoBasic.SubdivContent.idxpoi) != 0) {
                data_idxpoints.Offset = 0;
-               offstyp.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.idxpoi);
-               typs++;
+               offstype.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.idxpoi);
+               types++;
             }
             if ((Content & StdFile_TRE.SubdivInfoBasic.SubdivContent.line) != 0) {
                data_polylines.Offset = 0;
-               offstyp.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.line);
-               typs++;
+               offstype.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.line);
+               types++;
             }
             if ((Content & StdFile_TRE.SubdivInfoBasic.SubdivContent.area) != 0) {
                data_polygons.Offset = 0;
-               offstyp.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.area);
-               typs++;
+               offstype.Enqueue(StdFile_TRE.SubdivInfoBasic.SubdivContent.area);
+               types++;
             }
 
             // alle Offsets einlesen (für die 1. Objektart existiert niemals ein Offset)
             // Die Reihenfolge der Objektarten ist festgelegt: points, indexed points, polylines and then polygons.
             // Für die erste vorhandene Objektart ist kein Offset vorhanden, da sie immer direkt hinter der Offsetliste beginnt.
-            offstyp.Dequeue();
-            while (offstyp.Count > 0) {
+            offstype.Dequeue();
+            while (offstype.Count > 0) {
                // Da die Offsets nur als 2-Byte-Zahl gespeichert werden, ist die Größe eines Subdiv auf 65kB begrenzt!
                UInt16 offset = br.ReadUInt16();
-               switch (offstyp.Dequeue()) {
+               switch (offstype.Dequeue()) {
                   case StdFile_TRE.SubdivInfoBasic.SubdivContent.poi:
                      data_points.Offset = offset;
                      break;
@@ -352,16 +352,16 @@ namespace GarminCore.Files {
                }
             }
 
-            if (typs > 1)
+            if (types > 1)
                // Der Offset, der jetzt noch 0 ist, wird auf den Wert hinter die Offsetliste gesetzt.
                if (data_points.Offset == 0)
-                  data_points.Offset = (UInt32)((typs - 1) * 2);
+                  data_points.Offset = (UInt32)((types - 1) * 2);
                else if (data_idxpoints.Offset == 0)
-                  data_idxpoints.Offset = (UInt32)((typs - 1) * 2);
+                  data_idxpoints.Offset = (UInt32)((types - 1) * 2);
                else if (data_polylines.Offset == 0)
-                  data_polylines.Offset = (UInt32)((typs - 1) * 2);
+                  data_polylines.Offset = (UInt32)((types - 1) * 2);
                else if (data_polygons.Offset == 0)
-                  data_polygons.Offset = (UInt32)((typs - 1) * 2);
+                  data_polygons.Offset = (UInt32)((types - 1) * 2);
 
             // Länge der Datenbereiche bestimmen
             if (data_points.Offset != UInt32.MaxValue) {
@@ -445,16 +445,16 @@ namespace GarminCore.Files {
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata = null) {
-            uint typs = 0;
+            uint types = 0;
             if (PointList.Count > 0)
-               typs++;
+               types++;
             if (IdxPointList.Count > 0)
-               typs++;
+               types++;
             if (LineList.Count > 0)
-               typs++;
+               types++;
             if (AreaList.Count > 0)
-               typs++;
-            if (typs > 1) {      // dann sind Offsetangaben nötig
+               types++;
+            if (types > 1) {      // dann sind Offsetangaben nötig
                uint[] ListLen = { 0, 0, 0, 0 };
                for (int i = 0; i < PointList.Count; i++)
                   ListLen[0] += PointList[i].DataLength;
@@ -465,7 +465,7 @@ namespace GarminCore.Files {
                for (int i = 0; i < AreaList.Count; i++)
                   ListLen[3] += AreaList[i].DataLength;
 
-               uint offsets = (typs - 1) * 2;         // Platz für die Offsets einkalkulieren
+               uint offsets = (types - 1) * 2;         // Platz für die Offsets einkalkulieren
 
                bool first = true;
                for (int i = 0; i < ListLen.Length; i++)
@@ -619,7 +619,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// theoretisch bis 0x7f für Punkte, bis 0x7f (oder 0x3f?) für Polygone und Linien
          /// </summary>
-         public int Typ {
+         public int Type {
             get {
                return _Type & 0x7F;
             }
@@ -631,7 +631,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// Subtype 0x00..0xFF (nur bei Punkten)
          /// </summary>
-         public int Subtyp { get { return 0; } }
+         public int Subtype { get { return 0; } }
 
          /// <summary>
          /// Offset in der LBL-Datei (3 Byte)
@@ -678,15 +678,15 @@ namespace GarminCore.Files {
                GraphicObjectData go = (GraphicObjectData)obj;
                if (go == null)
                   return 1;
-               if (Typ == go.Typ) {
-                  if (Subtyp > go.Subtyp)
+               if (Type == go.Type) {
+                  if (Subtype > go.Subtype)
                      return 1;
-                  if (Subtyp < go.Subtyp)
+                  if (Subtype < go.Subtype)
                      return -1;
                   else
                      return 0;
                } else
-                  if (Typ > go.Typ)
+                  if (Type > go.Type)
                   return 1;
                else
                   return -1;
@@ -696,9 +696,9 @@ namespace GarminCore.Files {
 
          public override string ToString() {
             StringBuilder sb = new StringBuilder();
-            sb.AppendFormat("Typ {0:x2}", Typ);
-            if (Subtyp > 0)
-               sb.AppendFormat(", Subtyp {0:x2}", Subtyp);
+            sb.AppendFormat("Typ {0:x2}", Type);
+            if (Subtype > 0)
+               sb.AppendFormat(", Subtyp {0:x2}", Subtype);
             sb.AppendFormat(", LabelOffset {0}", LabelOffset);
             sb.AppendFormat(", RawDeltaLongitude {0}", RawDeltaLongitude);
             sb.AppendFormat(", RawDeltaLatitude {0}", RawDeltaLatitude);
@@ -721,7 +721,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// 8-Bit-Werte
          /// </summary>
-         public new int Typ {
+         public new int Type {
             get {
                return _Type;
             }
@@ -733,7 +733,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// Subtype 0x00..0x1F
          /// </summary>
-         public new int Subtyp {
+         public new int Subtype {
             get {
                return _Subtype & 0x1f;                         // Bit 0..4 (0..0x1f)
             }
@@ -977,9 +977,9 @@ namespace GarminCore.Files {
 
          public override string ToString() {
             StringBuilder sb = new StringBuilder();
-            sb.AppendFormat("Typ {0:x2}", Typ);
-            if (Subtyp > 0)
-               sb.AppendFormat(", Subtyp {0:x2}", Subtyp);
+            sb.AppendFormat("Type {0:x2}", Type);
+            if (Subtype > 0)
+               sb.AppendFormat(", Subtype {0:x2}", Subtype);
             if (HasLabel)
                sb.AppendFormat(", LabelOffset {0}", LabelOffset);
             sb.AppendFormat(", RawDeltaLongitude {0}", RawDeltaLongitude);
@@ -1001,7 +1001,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// Subtype 0x00..0xFF (0, wenn <see cref="HasSubtype"/> false ist)
          /// </summary>
-         public new int Subtyp {
+         public new int Subtype {
             get {
                if (HasSubtype)
                   return _Subtype;
@@ -1085,7 +1085,7 @@ namespace GarminCore.Files {
             RawDeltaLongitude = br.ReadInt16();
             RawDeltaLatitude = br.ReadInt16();
             if (HasSubtype)
-               Subtyp = br.ReadByte();
+               Subtype = br.ReadByte();
          }
 
          public void Write(BinaryReaderWriter bw) {
@@ -1118,6 +1118,12 @@ namespace GarminCore.Files {
       }
 
       /// <summary>
+      /// liefert den PostHeader-Datenbereich
+      /// </summary>
+      /// <returns></returns>
+      public DataBlock PostHeaderDataBlock { get; private set; }
+
+      /// <summary>
       /// Typ 0..0x3f für Linien und 0..0x7f für Polygone, Subtyp 0
       /// </summary>
       public class RawPolyData : GraphicObjectData {
@@ -1130,7 +1136,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// bis 0x7F für Polygone und 0x3F Linien
          /// </summary>
-         public new int Typ {
+         public new int Type {
             get {
                return _Type & (IsPolygon ? 0x7F : 0x3F);
             }
@@ -1158,21 +1164,23 @@ namespace GarminCore.Files {
          /// <summary>
          /// Bits je Koordinate (codiert)
          /// </summary>
-         byte _bitstreamInfo;
+         public byte bitstreamInfo { get; private set; }
 
          /// <summary>
          /// Bitstream der Geodaten
          /// </summary>
          byte[] _bitstream;
 
+         public byte[] bitstream { get { return _bitstream; } }
+
          /// <summary>
          /// Längenangabe für den gesamten Datenbereich in 1 oder 2 Byte (wenn der Bitstream länger als 255 Byte ist)
          /// </summary>
-         bool TwoByteLength {
+         public bool TwoByteLength {
             get {
                return Bit.IsSet(_Type, 7);
             }
-            set {
+            private set {
                _Type = (byte)Bit.Set(_Type, 7, value);
             }
          }
@@ -1206,11 +1214,11 @@ namespace GarminCore.Files {
          /// <summary>
          /// wenn true, dann 1 Bit zusätzlich je Punkt (die Straße sollte dann routable sein und Zusatzinfos in NET / NOD enthalten)
          /// </summary>
-         bool WithExtraBit {
+         public bool WithExtraBit {
             get {
                return Bit.IsSet(_LabelOffset, 22);
             }
-            set {
+            private set {
                _LabelOffset = Bit.Set(_LabelOffset, 22, value);
             }
          }
@@ -1241,7 +1249,7 @@ namespace GarminCore.Files {
 
          public RawPolyData(bool isPolygon = false)
             : base() {
-            _bitstreamInfo = 0xFF;
+            bitstreamInfo = 0xFF;
             IsPolygon = isPolygon;
             ExtraBit = new List<bool>();
          }
@@ -1266,48 +1274,10 @@ namespace GarminCore.Files {
             RawDeltaLongitude = br.ReadInt16();
             RawDeltaLatitude = br.ReadInt16();
             int BitstreamLength = TwoByteLength ? br.ReadUInt16() : br.ReadByte();
-            _bitstreamInfo = br.ReadByte();
+            bitstreamInfo = br.ReadByte();
             _bitstream = br.ReadBytes(BitstreamLength);  // _bitstreamInfo zählt nicht mit!
 
             ExtraBit.Clear();
-
-            /*    einfacher Test
-              
-            if (LabelOffset == 393029 && LongitudeDelta == 10285) //4 && BitstreamLength == 5)
-               Console.WriteLine("");
-            if (br.Position == 0x86af)
-               Console.WriteLine("");
-
-
-            List<GeoData4Polys.RawPoint> pt = null;
-            List<GeoData4Polys.RawPoint> pt2 = null;
-
-            try {
-               pt = GetPoints();
-            } catch (Exception ex) {
-               Console.WriteLine(ex.Message);
-            }
-
-            try {
-               SetPoints(pt);
-            } catch (Exception ex) {
-               Console.WriteLine(ex.Message);
-            }
-
-            try {
-               pt2 = GetPoints();
-            } catch (Exception ex) {
-               Console.WriteLine(ex.Message);
-            }
-
-            if (pt.Count != pt2.Count)
-               Console.WriteLine("ERROR Punktanzahl: " + this.ToString());
-            else
-               for (int i = 0; i < pt.Count; i++)
-                  if (pt[i].Latitude != pt2[i].Latitude ||
-                      pt[i].Longitude != pt2[i].Longitude)
-                     Console.WriteLine("ERROR: " + this.ToString());
-            */
          }
 
          /// <summary>
@@ -1323,7 +1293,7 @@ namespace GarminCore.Files {
                bw.Write((UInt16)_bitstream.Length);
             else
                bw.Write((byte)_bitstream.Length);
-            bw.Write(_bitstreamInfo);
+            bw.Write(bitstreamInfo);
             bw.Write(_bitstream);
          }
 
@@ -1332,10 +1302,9 @@ namespace GarminCore.Files {
          /// <para><see cref="RawDeltaLongitude"/> und <see cref="RawDeltaLatitude"/> stellen den Startpunkt dar. Die Koordinaten beziehen sich auf den Mittelpunkt der zugehörigen Subdiv.</para>
          /// </summary>
          /// <returns></returns>
-         List<GeoDataBitstream.RawPoint> GetRawPoints() {
+         public List<GeoDataBitstream.RawPoint> GetRawPoints() {
             ExtraBit.Clear();
-            GeoDataBitstream geodata = new GeoDataBitstream();
-            return geodata.GetRawPoints(ref _bitstream, _bitstreamInfo & 0x0F, (_bitstreamInfo & 0xF0) >> 4, RawDeltaLongitude, RawDeltaLatitude, WithExtraBit ? ExtraBit : null, false);
+            return GeoDataBitstream.GetRawPoints(ref _bitstream, bitstreamInfo & 0x0F, (bitstreamInfo & 0xF0) >> 4, RawDeltaLongitude, RawDeltaLatitude, WithExtraBit ? ExtraBit : null, false);
          }
 
          /// <summary>
@@ -1363,14 +1332,13 @@ namespace GarminCore.Files {
                 extra.Count == pt.Count)
                ExtraBit.AddRange(extra);
             int basebits4lon, basebits4lat;
-            GeoDataBitstream geodata = new GeoDataBitstream();
-            byte[] tmp = geodata.SetRawPoints(pt, out basebits4lon, out basebits4lat, ExtraBit, false);
+            byte[] tmp = GeoDataBitstream.SetRawPoints(pt, out basebits4lon, out basebits4lat, ExtraBit, false);
             if (tmp != null) {
                _bitstream = tmp;
-               _bitstreamInfo = (byte)(basebits4lat << 4 | basebits4lon);
+               bitstreamInfo = (byte)(basebits4lat << 4 | basebits4lon);
                TwoByteLength = _bitstream.Length > 255;
-               RawDeltaLongitude = (Int16)pt[0].Longitude;
-               RawDeltaLatitude = (Int16)pt[0].Latitude;
+               RawDeltaLongitude = (Int16)pt[0].RawUnitsLon;
+               RawDeltaLatitude = (Int16)pt[0].RawUnitsLat;
                return true;
             }
             Debug.WriteLineIf(tmp == null, string.Format("SetPoints() hat keinen Bitstream erzeugt (für {0} Punkte)", pt.Count));
@@ -1432,16 +1400,16 @@ namespace GarminCore.Files {
             Bound rb = null;
             List<GeoDataBitstream.RawPoint> pts = GetRawPoints();
             if (pts.Count > 0) {
-               rb = new Bound(pts[0].Longitude, pts[0].Latitude);
+               rb = new Bound(pts[0].RawUnitsLon, pts[0].RawUnitsLat);
                for (int i = 1; i < pts.Count; i++)
-                  rb.Embed(pts[i].Longitude, pts[i].Latitude);
+                  rb.Embed(pts[i].RawUnitsLon, pts[i].RawUnitsLat);
             }
             return rb;
          }
 
          public override string ToString() {
             return string.Format("Typ {0:x2}, LabelOffset {1}, LabelInNET {2}, RawDeltaLongitude {3}, RawDeltaLatitude {4}, WithExtraBit {5}, Datenbytes {6}",
-                                 Typ,
+                                 Type,
                                  LabelOffset,
                                  LabelInNET,
                                  RawDeltaLongitude,
@@ -1543,8 +1511,11 @@ namespace GarminCore.Files {
       /// </summary>
       public class ExtRawPolyData : ExtGraphicObjectData {
 
-         byte _bitstreamInfo;
+         public byte bitstreamInfo { get; private set; }
+
          byte[] _bitstream;
+
+         public byte[] bitstream { get { return _bitstream; } }
 
          /// <summary>
          /// Ex. Punkte?
@@ -1558,7 +1529,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// 7-Bit-Werte 0x00..0x7F
          /// </summary>
-         public new int Typ {
+         public new int Type {
             get {
                return _Type & 0x7F;
             }
@@ -1579,10 +1550,19 @@ namespace GarminCore.Files {
             }
          }
 
+         /// <summary>
+         /// Originalbytes für die gelesene Bitstreamlänge
+         /// </summary>
+         public byte[] RawBitStreamLengthBytes { get; private set; }
+
+         /// <summary>
+         /// Länge des gelesenen Bitstreams
+         /// </summary>
+         public uint BitstreamLength { get; private set; }
 
          public ExtRawPolyData()
             : base() {
-            _bitstreamInfo = 0;
+            bitstreamInfo = 0;
             _bitstream = null;
          }
 
@@ -1610,15 +1590,18 @@ namespace GarminCore.Files {
 		stream.write(bw.getBytes(), 0, blen); 
              * */
 
-            uint BitstreamLength = br.ReadByte();
-            if ((BitstreamLength & 0x01) != 0)        // Bit 0 Kennung für 1 Byte-Länge
+            BitstreamLength = br.ReadByte();
+            if ((BitstreamLength & 0x01) != 0) {      // Bit 0 Kennung für 1 Byte-Länge
+               RawBitStreamLengthBytes = new byte[] { (byte)BitstreamLength };
                BitstreamLength >>= 1;
-            else {                                    // 2-Byte-Länge
+            } else {                                    // 2-Byte-Länge
+               RawBitStreamLengthBytes = new byte[] { (byte)BitstreamLength, 0 };
                BitstreamLength >>= 2;
-               BitstreamLength |= (uint)(br.ReadByte() << 6);
+               RawBitStreamLengthBytes[1] = br.ReadByte();
+               BitstreamLength |= (uint)(RawBitStreamLengthBytes[1] << 6);
             }
 
-            _bitstreamInfo = br.ReadByte();
+            bitstreamInfo = br.ReadByte();
             _bitstream = br.ReadBytes((int)BitstreamLength - 1);     // _bitstreamInfo ist in BitstreamLength eingeschlossen!
 
             if (HasLabel)
@@ -1687,7 +1670,7 @@ namespace GarminCore.Files {
                bw.Write((byte)(bitstreamLength & 0xFF));             // die Bits 6, 7, 8, ... des Originalwertes werden geschrieben
             }
 
-            bw.Write(_bitstreamInfo);
+            bw.Write(bitstreamInfo);
             bw.Write(_bitstream);
 
             if (HasLabel)
@@ -1702,15 +1685,14 @@ namespace GarminCore.Files {
          /// <para><see cref="LongitudeDelta"/> und <see cref="LatitudeDelta"/> stellen den Startpunkt dar. Die Koordinaten beziehen sich auf den Mittelpunkt der zugehörigen Subdiv.</para>
          /// </summary>
          /// <returns></returns>
-         List<GeoDataBitstream.RawPoint> GetRawPoints() {
-            GeoDataBitstream geodata = new GeoDataBitstream();
-            return geodata.GetRawPoints(ref _bitstream, _bitstreamInfo & 0x0F, (_bitstreamInfo & 0xF0) >> 4, RawDeltaLongitude, RawDeltaLatitude, null, true);
+         public List<GeoDataBitstream.RawPoint> GetRawPoints() {
+            return GeoDataBitstream.GetRawPoints(ref _bitstream, bitstreamInfo & 0x0F, (bitstreamInfo & 0xF0) >> 4, RawDeltaLongitude, RawDeltaLatitude, null, true);
          }
 
          public List<MapUnitPoint> GetMapUnitPoints(int coordbits, MapUnitPoint subdiv_center) {
             List<MapUnitPoint> lst = new List<MapUnitPoint>();
             foreach (var item in GetRawPoints()) {
-               MapUnitPoint pt = new MapUnitPoint(item.Longitude, item.Latitude, coordbits);
+               MapUnitPoint pt = new MapUnitPoint(item.RawUnitsLon, item.RawUnitsLat, coordbits);
                pt.Add(subdiv_center);
                lst.Add(pt);
             }
@@ -1725,13 +1707,12 @@ namespace GarminCore.Files {
          /// <returns></returns>
          bool SetRawPoints(IList<GeoDataBitstream.RawPoint> pt) {
             int basebits4lon, basebits4lat;
-            GeoDataBitstream geodata = new GeoDataBitstream();
-            byte[] tmp = geodata.SetRawPoints(pt, out basebits4lon, out basebits4lat, null, true);
+            byte[] tmp = GeoDataBitstream.SetRawPoints(pt, out basebits4lon, out basebits4lat, null, true);
             if (tmp != null) {
                _bitstream = tmp;
-               _bitstreamInfo = (byte)(basebits4lat << 4 | basebits4lon);
-               RawDeltaLongitude = (Int16)pt[0].Longitude;
-               RawDeltaLatitude = (Int16)pt[0].Latitude;
+               bitstreamInfo = (byte)(basebits4lat << 4 | basebits4lon);
+               RawDeltaLongitude = (Int16)pt[0].RawUnitsLon;
+               RawDeltaLatitude = (Int16)pt[0].RawUnitsLat;
                return true;
             }
             return false;
@@ -1793,9 +1774,9 @@ namespace GarminCore.Files {
             Bound rb = null;
             List<GeoDataBitstream.RawPoint> pts = GetRawPoints();
             if (pts.Count > 0) {
-               rb = new Bound(pts[0].Longitude, pts[0].Latitude);
+               rb = new Bound(pts[0].RawUnitsLon, pts[0].RawUnitsLat);
                for (int i = 1; i < pts.Count; i++)
-                  rb.Embed(pts[i].Longitude, pts[i].Latitude);
+                  rb.Embed(pts[i].RawUnitsLon, pts[i].RawUnitsLat);
             }
             return rb;
          }
@@ -1806,41 +1787,42 @@ namespace GarminCore.Files {
 
       }
 
+      #endregion
+
       /// <summary>
       /// zur De- und Encodierung der geografischen Daten für Polylines und Polygones als Bitstream
       /// </summary>
-      public class GeoDataBitstream {
+      static public class GeoDataBitstream {
 
          /* Bitstream
           * 
-          * Folge der Bits 0..7 vom ersten Byte
-          *           Bits 0..7 vom zweiten Byte
-          *           ....
+          * Folge der Bits 0..7 vom ersten Byte, Bits 0..7 vom zweiten Byte usw.
           */
 
          /// <summary>
          /// Punkt in Garmin-Rohdaten (Differenzen zur Subdiv-Mitte und ohne Berücksichtigung einer Bitanzahl)
          /// </summary>
          public class RawPoint {
+
             /// <summary>
             /// Länge in RawUnits
             /// </summary>
-            public int Longitude;
+            public int RawUnitsLon;
 
             /// <summary>
             /// Breite in RawUnits
             /// </summary>
-            public int Latitude;
+            public int RawUnitsLat;
 
 
             public RawPoint(int lon = 0, int lat = 0) {
-               Longitude = lon;
-               Latitude = lat;
+               RawUnitsLon = lon;
+               RawUnitsLat = lat;
             }
 
             public RawPoint(RawPoint pt) {
-               Longitude = pt.Longitude;
-               Latitude = pt.Latitude;
+               RawUnitsLon = pt.RawUnitsLon;
+               RawUnitsLat = pt.RawUnitsLat;
             }
 
             /// <summary>
@@ -1851,8 +1833,8 @@ namespace GarminCore.Files {
             /// <param name="subdiv_center"></param>
             public RawPoint(MapUnitPoint pt, int coordbits, MapUnitPoint subdiv_center) {
                MapUnitPoint diff = pt - subdiv_center;
-               Longitude = diff.LongitudeRawUnits(coordbits);
-               Latitude = diff.LatitudeRawUnits(coordbits);
+               RawUnitsLon = diff.LongitudeRawUnits(coordbits);
+               RawUnitsLat = diff.LatitudeRawUnits(coordbits);
             }
 
             /// <summary>
@@ -1862,268 +1844,238 @@ namespace GarminCore.Files {
             /// <param name="subdiv_center"></param>
             /// <returns></returns>
             public MapUnitPoint GetMapUnitPoint(int coordbits, MapUnitPoint subdiv_center) {
-               MapUnitPoint p = new MapUnitPoint(Longitude, Latitude, coordbits); // Diff. zum Mittelpunkt der Subdiv
+               MapUnitPoint p = new MapUnitPoint(RawUnitsLon, RawUnitsLat, coordbits); // Diff. zum Mittelpunkt der Subdiv
                p.Longitude += subdiv_center.Longitude;
                p.Latitude += subdiv_center.Latitude;
                return p;
             }
 
             public override string ToString() {
-               return string.Format("RawLon {0}, RawLat {1}", Longitude, Latitude);
+               return string.Format("RawUnitsLon {0}, RawUnitsLat {1}", RawUnitsLon, RawUnitsLat);
             }
          }
 
-         /// <summary>
-         /// Bitstream mit konstantem Vorzeichen für Longitude
-         /// </summary>
-         bool same_lon_sign;
-         /// <summary>
-         /// Vorzeichen bei Bitstream mit konstantem Vorzeichen für Longitude
-         /// </summary>
-         bool same_lon_neg_sign;
-         /// <summary>
-         /// Bitstream mit konstantem Vorzeichen für Latitude
-         /// </summary>
-         bool same_lat_sign;
-         /// <summary>
-         /// Vorzeichen bei Bitstream mit konstantem Vorzeichen für Latitude
-         /// </summary>
-         bool same_lat_neg_sign;
-         /// <summary>
-         /// Start der Daten im Bitstream
-         /// </summary>
-         int bitstreamstart = 0;
+         enum SignType {
+            /// <summary>
+            /// unbekannt
+            /// </summary>
+            unknown,
+            /// <summary>
+            /// alle nichtnegativ
+            /// </summary>
+            allpos,
+            /// <summary>
+            /// alle negativ
+            /// </summary>
+            allneg,
+            /// <summary>
+            /// sowohl negativ als auch nichtnegativ
+            /// </summary>
+            different,
+         }
 
+         #region Hilfsfunktionen zum Decodieren des Bitstreams
 
          /// <summary>
          /// liest die Vorzeichenbehandlung für den Bitstream ein
          /// </summary>
          /// <param name="bitstream"></param>
-         void InitBitstreamControlValues(ref byte[] bitstream) {
-            bitstreamstart = 0;
-            same_lon_sign = BitFromBitArray(bitstreamstart++, ref bitstream);
-            if (same_lon_sign)
-               same_lon_neg_sign = BitFromBitArray(bitstreamstart++, ref bitstream);
-            same_lat_sign = BitFromBitArray(bitstreamstart++, ref bitstream);
-            if (same_lat_sign)
-               same_lat_neg_sign = BitFromBitArray(bitstreamstart++, ref bitstream);
+         /// <returns>Anzahl der verwendeten Bits</returns>
+         static int ReadBitstreamSigns(ref byte[] bitstream, out SignType lon_sign, out SignType lat_sign) {
+            int bitstreampos = 0;
+
+            lon_sign = SignType.different;
+            if (GetBitFromByteArray(bitstreampos++, ref bitstream))     // 1-Bit -> gleiches Vorzeichen -> Art des Vorzeichen abfragen
+               lon_sign = GetBitFromByteArray(bitstreampos++, ref bitstream) ? SignType.allneg : SignType.allpos;    // 1-Bit -> neg. Vorzeichen
+
+            lat_sign = SignType.different;
+            if (GetBitFromByteArray(bitstreampos++, ref bitstream))
+               lat_sign = GetBitFromByteArray(bitstreampos++, ref bitstream) ? SignType.allneg : SignType.allpos;
+
+            return bitstreampos;
          }
 
          /// <summary>
          /// testet, ob das Bit im Bytearray gesetzt ist
+         /// <para>Die Bits zählen je Byte immer von 0 bis 7. Bit 9 ist z.B. das 2. Bit (1) im 2. Byte.</para>
          /// </summary>
          /// <param name="bitoffset"></param>
          /// <param name="bitstream"></param>
          /// <returns></returns>
-         bool BitFromBitArray(int bitoffset, ref byte[] bitstream) {
-            byte b = bitstream[bitoffset / 8];
+         static bool GetBitFromByteArray(int bitoffset, ref byte[] bitstream) {
+            byte b = bitstream[bitoffset / 8];  // Index des betroffenen Bytes
             b >>= bitoffset % 8;
             return (b & 0x01) != 0;
          }
 
-         /// <summary>
-         /// setzt das entsprechende Bit auf 1
-         /// </summary>
-         /// <param name="bitoffset"></param>
-         /// <param name="bitstream"></param>
-         void SetBitInBitArray(int bitoffset, ref byte[] bitstream) {
-            bitstream[bitoffset / 8] |= (byte)(0x01 << (bitoffset % 8));
-         }
+         /* Für die Codierung werden              2, 3, 4, ... , 10, 11, 13, 15, ... Bits verwendet.
+          * Als "BaseBits" werden dafür die Werte 0, 1, 2, ... ,  8,  9, 10, 11, ... verwendet.
+          * Für die beiden BaseBits-Angaben steht nur 1 Byte zur Verfügung, d.h. es gilt immer BaseBits <= 15 (Bits <= 23)
+          */
 
          /// <summary>
-         /// liefert die Anzahl der nötigen Bits um den Wert zu codieren
+         /// Umrechnung der tatsächlich verwendeten Bits in die gespeicherte Bitangabe
          /// </summary>
-         /// <param name="val"></param>
+         /// <param name="realbits">reale Bitanzahl</param>
          /// <returns></returns>
-         protected int BitsNeeded(uint val) {
-            int bits;
-            for (bits = 24; bits > 0; bits--)
-               if ((val >> bits) != 0)
-                  break;
-            bits++;
-            if (bits < 2)
-               bits = 2;
-            return bits;
+         static int BaseBits4RealBits(int realbits) {
+            if (realbits <= 2)
+               return 0;
+
+            else if (realbits <= 11)
+               // 3 -> 1
+               // ...
+               // 11 -> 9
+               return realbits - 2;
+
+            // 12 -> 10
+            // 13 -> 10
+            // 14 -> 11
+            // 15 -> 11
+            // 16 -> 12
+            // ...
+            return realbits / 2 + 4;
          }
 
          /// <summary>
          /// Umrechnung der gespeicherten Bitangabe in die tatsächlich verwendeten Bits
          /// </summary>
-         /// <param name="basebits"></param>
-         /// <param name="signed"></param>
+         /// <param name="basebits">gespeicherten Bitangabe</param>
          /// <returns></returns>
-         int BaseBits2Bits(int basebits, bool signed) {
-            int bits = 2;
-            if (basebits < 10)
-               // 0->2
-               // 1->3
-               // 2->4
-               // 3->5
-               // 4->6
-               // 5->7
-               // 6->8
-               // 7->9
-               // 8->10
-               // 9->11
-               bits += basebits;
-            else
-               // 10->13
-               // 11->15
-               // 12->17
-               // 13->19
-               // 14->21
-               // 15->23
-               bits += 2 * basebits - 9;
+         static int RealBits4BaseBits(int basebits) {
+            if (basebits <= 9)
+               return basebits + 2;
 
-            if (signed)
-               bits++;
-
-            return bits;
+            // 10 -> 13
+            // 11 -> 15
+            // 12 -> 17
+            return 2 * basebits - 7;
          }
 
-         /// <summary>
-         /// Umrechnung der tatsächlich verwendeten Bits in die gespeicherte Bitangabe
-         /// </summary>
-         /// <param name="bits">min. 2</param>
-         /// <param name="signed"></param>
-         /// <returns></returns>
-         int Bits2BaseBits(int bits, bool signed) {
-            if (signed)
-               bits--;
-
-            if (bits < 12)
-               // 2->0
-               // 3->1
-               // 4->2
-               // 5->3
-               // 6->4
-               // 7->5
-               // 8->6
-               // 9->7
-               // 10->8
-               // 11->9
-               bits -= 2;
-            else
-               // 12->10
-               // 13->10
-               // 14->11
-               // 15->11
-               // 16->12
-               // 17->12
-               // 18->13
-               // 19->13
-               // 20->14
-               // 21->14
-               // 22->15
-               // 23->15
-               bits = bits / 2 + 4;
-
-            return bits;
-         }
+         /* Es wird im Prinzip die Standardcodierung für int-Zahlen verwendet. Der einzige Unterschied zu Int16 oder Int32 ist die vorgegebene max. Bitanzahl.
+          * Wird kein variables Vorzeichen verwendet, handelt es sich einfach um unsigned Zahlen.
+          * Andernfalls steht im höchstwertigen Bit das Vorzeichen (1 für +, 0 für -).
+          * Codierung für n-Bit-Werte:    Wert(n-1) - Bitn * 2^(n-1)
+          * z.B. n=5, var. Vorzeichen, val=12        b01100
+          *      n=5, var. Vorzeichen, val=-12       b10100         4 - 16 = -12
+          *      n=5, festes Vorzeichen, val=+-12  +-b01100
+          *      
+          * Ist NUR das höchstwertige Bit gesetzt (signed -2^(n-1) bzw. unsigned 2^(n-1)) liegt ein Spezialfall für größere Werte vor. 
+          * Es werden so lange die nächsten n Bit ausgewertet, bis kein Spezialfall mehr vorliegt. Der dann ermittelte Wert wird um die Anzahl der Spezialfälle
+          * multipliziert mit 2^(n-1)-1 vergrößert.
+          */
 
          /// <summary>
-         /// setzt das entsprechende Bitmuster und liefert die verwendete Bitanzahl
+         /// liefert den Wert aus den ersten n Bit
+         /// <para>Wird long.MinValue geliefert, wurde der Spezialwert für eine Verlängerung des Bitbereiches gefunden.</para>
          /// </summary>
-         /// <param name="bitoffset"></param>
-         /// <param name="length"></param>
-         /// <param name="signed"></param>
-         /// <param name="value"></param>
-         /// <param name="bitstream"></param>
+         /// <param name="bits">Bitmuster (ab Bit 0)</param>
+         /// <param name="bitcount">Anzahl der gültigen Bits (Rest bleibt unberücksichtigt)</param>
+         /// <param name="signed">als signed oder unsigned interpretieren</param>
          /// <returns></returns>
-         int SetValueToBitArray(int bitoffset, int length, bool signed, int value, ref byte[] bitstream) {
-            if (signed && value < 0) {
-               int sign = 0x01 << (length - 1);       // Maske und pos. Wert (length<32)
-               value += sign;
-               value |= sign;
-            } else
-               if (value < 0)
-               value = -value;
+         static long GetNBitValue(ulong bits, int bitcount, bool signed) {
+            int stdbits = signed ? bitcount - 1 : bitcount;
+            long v = 0;
 
-            for (int i = 0; i < length; i++) {
-               if (((value >> i) & 0x01) != 0)        // Bit i gesetzt ?
-                  bitstream[bitoffset / 8] |= (byte)(0x01 << (bitoffset % 8));
-               bitoffset++;
+            for (int i = 0; i < stdbits; i++) {
+               if ((bits & 0x1) != 0) {
+#pragma warning disable CS0675 // Bitweiser OR-Operator, der bei einem signaturerweiterten Operanden verwendet wurde.
+                  v |= 0x1 << i;
+#pragma warning restore CS0675 // Bitweiser OR-Operator, der bei einem signaturerweiterten Operanden verwendet wurde.
+               }
+               bits >>= 1;
             }
-            return length;
+
+            if (signed) {  // höchstwertiges Bit (Vorzeichen) auswerten
+               if ((bits & 0x1) != 0) {      // neg. Vorzeichen
+                  if (v != 0)
+                     v -= 1 << (bitcount - 1);  // Wert(n-1) - 1 * 2^(n-1)
+                  else
+                     v = long.MinValue;      // Kennung für Spezialfall '-0'
+               }
+            }
+
+            return v;
          }
 
          /// <summary>
-         /// liefert den Bitbereich aus dem Bytearray als Zahl
+         /// liefert den Bitbereich aus n Bits aus dem Bytearray als Zahl
+         /// <para>Wenn der Bitbereich mit 1 oder mehreren Spezialwerten beginnt, werden jeweils die folgenden Bitreiche mitausgewertet. Dadurch kann die Gesamtlänge 
+         /// des gelesenen Bereiches größer als ursprünglich gewünscht sein.</para>
          /// </summary>
          /// <param name="bitoffset">Nummer des Startbits im Array 0..</param>
-         /// <param name="length">Anzahl der zusammengehörenden Bits</param>
+         /// <param name="bits">Anzahl der zusammengehörenden Bits</param>
          /// <param name="reallength">Anzahl der tatsächlich berücksichtigten Bits (kann größer als <see cref="length"/> sein)</param>
-         /// <param name="const_signed">wenn true, ist das Vorzeichen mit <see cref="const_negativ_sign"/> festgelegt</param>
-         /// <param name="const_negativ_sign">wenn <see cref="const_signed"/> true ist, wird mit true ein negatives Vorzeichen festgelegt</param>
-         /// <param name="bitstream"></param>
+         /// <param name="sign">Vorzeichentyp</param>
+         /// <param name="bitstream">Byte-Array</param>
          /// <returns></returns>
-         Int32 GetValueFromBitArray(int bitoffset, int length, out int reallength, bool const_signed, bool const_negativ_sign, ref byte[] bitstream) {
-            reallength = length;
+         static int GetValueFromBytetArray(int bitoffset,
+                                          int bits,
+                                          ref int reallength,
+                                          SignType sign,
+                                          ref byte[] bitstream) {
             int byteoffset = bitoffset / 8;
-            int bitstart = bitoffset % 8;
+            int bitinbyte = bitoffset % 8;
 
-            int lastbyteoffset = (bitoffset + length - 1) / 8;       // Index des letzten benötigten Bytes
-            if (lastbyteoffset >= bitstream.Length) {
-               reallength *= -1;
+            if ((bitoffset + bits - 1) / 8 > bitstream.Length) { // Index des letzten benötigten Bytes zu groß: Fehler !!!
+               reallength = -1;
                return 0;
             }
 
+            // alle benötigten Bits in einer Var zusammenfassen
             ulong tmp;        // 64 Bit
-            if (bitstart + length > 32) {             // betrifft 5 Byte
+            if (bitinbyte + bits > 32) {              // betrifft 5 Byte (z.Z. nicht möglich, da max 24 Bit verwendet werden; selbt bei ungünstiger Lage werden max. 4 Byte benötigt)
                tmp = (ulong)(bitstream[byteoffset] +
-                             (bitstream[byteoffset + 1] << 8) +
-                             (bitstream[byteoffset + 2] << 16) +
-                             (bitstream[byteoffset + 3] << 24) +
-                             (bitstream[byteoffset + 4] << 32));
-            } else if (bitstart + length > 24) {      // betrifft 4 Byte
+                            (bitstream[byteoffset + 1] << 8) +
+                            (bitstream[byteoffset + 2] << 16) +
+                            (bitstream[byteoffset + 3] << 24) +
+                            (bitstream[byteoffset + 4] << 32));
+            } else if (bitinbyte + bits > 24) {       // betrifft 4 Byte
                tmp = (ulong)(bitstream[byteoffset] +
                              (bitstream[byteoffset + 1] << 8) +
                              (bitstream[byteoffset + 2] << 16) +
                              (bitstream[byteoffset + 3] << 24));
-            } else if (bitstart + length > 16) {      // betrifft 3 Byte
+            } else if (bitinbyte + bits > 16) {       // betrifft 3 Byte
                tmp = (ulong)(bitstream[byteoffset] +
                              (bitstream[byteoffset + 1] << 8) +
                              (bitstream[byteoffset + 2] << 16));
-            } else if (bitstart + length > 8) {       // betrifft 2 Byte
+            } else if (bitinbyte + bits > 8) {        // betrifft 2 Byte
                tmp = (ulong)(bitstream[byteoffset] +
                              (bitstream[byteoffset + 1] << 8));
             } else {                                  // betrifft 1 Byte
                tmp = bitstream[byteoffset];
             }
-            // Bespiel: bitstart=3, length=5 -> Bits 3..7 gesucht
-            //          Bit 8..63 "rausschieben" (63-8+1 = 64-8 = 64-3-5 -> 56)
-            //          Bit 59..63 zurückschieben (3+56 = 3+(64-3-5) = 64-5 -> 59)
-            tmp <<= 64 - bitstart - length;        // höherwertige Bits "rausschieben"
-            tmp >>= 64 - length;                   // auf Startbit zurückschieben
 
-            // tmp enthält jetzt die korrekte Bitfolge
-            if (const_signed) {           // bei konstantem Vorzeichen wird der Wert entsprechend des Vorzeichens geliefert
-               if (const_negativ_sign)
-                  return -(Int32)tmp;
-               else
-                  return (Int32)tmp;
+            tmp >>= bitinbyte;   // Bitmuster fängt jetzt bei Bit an.
+
+            reallength += bits;  // Anzahl der "verbrauchten" Bits
+
+            if (sign != SignType.different) {                     // bei konstantem Vorzeichen wird der Wert entsprechend des Vorzeichens geliefert
+
+               int tmp1 = (int)GetNBitValue(tmp, bits, false);
+               return sign == SignType.allpos ?
+                                    tmp1 :
+                                    -tmp1;
+
+            } else {
+
+               long tmp1 = GetNBitValue(tmp, bits, true);
+
+               if (tmp1 != long.MinValue)
+                  return (int)tmp1;
+               else {
+                  int tmp2 = GetValueFromBytetArray(bitoffset + bits, bits, ref reallength, SignType.different, ref bitstream);
+                  int tmp3 = (0x1 << (bits - 1)) - 1;
+                  return tmp2 + (tmp2 >= 0 ? tmp3 : -tmp3);
+               }
+
             }
-
-            // bei variablem Vorzeichen wird das höchstwertigste Bit geprüft
-            if ((tmp >> (length - 1)) != 0) {         // -> negativ
-               ulong tmp2 = (ulong)(0x01 << (length - 1));     // Bitmaske für das höchstwertige Bit
-               tmp &= ~tmp2;                                   // höchstwertiges Bit zurücksetzen
-               if (tmp != 0)
-                  return (Int32)(tmp - tmp2);
-
-               // Spezialfall: nur Vorzeichenbit gesetzt, Wert == 0; (das wäre eigentlich MinValue)
-               //       Wert ist dann zunächst "1 - Wert als unsigned", z.B. für 1000 -> 1 - 8 = -7
-               //       dazu wird der Wert der nächsten Bitfolge normal gelesen und addiert addiert
-               //       -> Verdopplung des Wertebereichs möglich
-               return 1 - (Int32)tmp2 + GetValueFromBitArray(bitoffset + length, length, out reallength, false, false, ref bitstream);
-            }
-
-            return (Int32)tmp;      // variables Vorzeichen, aber positiv
          }
 
+         #endregion
 
          /// <summary>
-         /// erzeugt die Liste der Punkte (in den "rohen" Werten) aus dem aktuell gespeicherten Byte-Array
+         /// liefert die Liste der Punkte (als Differenzwerte bezüglich des Subdiv-Mittelpunktes) aus dem aktuell gespeicherten Byte-Array
          /// <para>Es muß noch der Mittelpunkt des Subdivs und die Bitverschiebung berücksichtigt werden.</para>
          /// </summary>
          /// <param name="bitstream">Byte-Array</param>
@@ -2134,114 +2086,214 @@ namespace GarminCore.Files {
          /// <param name="extrabit">Liste die die Extrabits aufnimmt (oder null)</param>
          /// <param name="extendedtype">true wenn es sich um Daten für einen extended Typ handelt</param>
          /// <returns></returns>
-         public List<RawPoint> GetRawPoints(ref byte[] bitstream, int basebits4lon, int basebits4lat, int start_lon, int start_lat, List<bool> extrabit, bool extendedtype) {
+         static public List<RawPoint> GetRawPoints(ref byte[] bitstream,
+                                                   int basebits4lon,
+                                                   int basebits4lat,
+                                                   int start_lon,
+                                                   int start_lat,
+                                                   List<bool> extrabit,
+                                                   bool extendedtype) {
             List<RawPoint> rawpoints = new List<RawPoint>();
 
             if (bitstream != null && bitstream.Length > 0) {
-               InitBitstreamControlValues(ref bitstream);
+               SignType lon_sign;
+               SignType lat_sign;
+               int bitstreampos = ReadBitstreamSigns(ref bitstream, out lon_sign, out lat_sign);
+
+               /* MKGMAP probiert in einer Funktion makeBitStream() ausgehend von theoretisch nötigen Werten die besten Werte für basebits4lon / basebits4lat aus.
+               * Wegene des Spezialwertes '-0' können kleinere Werte u.U. zu einem kürzeren Bitstream führen.
+               * Falls lon und/oder lat ein individuelles Vorzeichen haben, wird basebits4lon und/oder basebits4lat vorher noch inkrementiert!
+               */
 
                if (extendedtype)
-                  BitFromBitArray(bitstreamstart++, ref bitstream);        // unklar; immer 0?
+                  GetBitFromByteArray(bitstreampos++, ref bitstream);        // unklar; immer 0?
 
                if (extrabit != null)
-                  extrabit.Add(BitFromBitArray(bitstreamstart++, ref bitstream));
+                  extrabit.Add(GetBitFromByteArray(bitstreampos++, ref bitstream));
 
-               int bitstreamoffset = bitstreamstart;
+               int bitstreamoffset = bitstreampos;
                int bits = 8 * bitstream.Length;
-               int bits4Longitude = BaseBits2Bits(basebits4lon, !same_lon_sign);
-               int bits4Latitude = BaseBits2Bits(basebits4lat, !same_lat_sign);
-               int reallength;
+               int bits4Longitude = RealBits4BaseBits(basebits4lon);
+               int bits4Latitude = RealBits4BaseBits(basebits4lat);
+               if (lon_sign == SignType.different)
+                  bits4Longitude++;
+               if (lat_sign == SignType.different)
+                  bits4Latitude++;
                int bits4point = bits4Longitude + bits4Latitude + (extrabit != null ? 1 : 0);
 
                // The starting point of the polyline and polygon are defined by longitude_delta and latitude_delta.
                rawpoints.Add(new RawPoint(start_lon, start_lat));
 
+               int reallength;
                while (bitstreamoffset + bits4point <= bits) {
-                  int lon = GetValueFromBitArray(bitstreamoffset, bits4Longitude, out reallength, same_lon_sign, same_lon_neg_sign, ref bitstream);
+                  reallength = 0;
+                  int lon = GetValueFromBytetArray(bitstreamoffset, bits4Longitude, ref reallength, lon_sign, ref bitstream);
                   bitstreamoffset += reallength;
                   if (reallength <= 0) {
                      bitstreamoffset += 2 * reallength;
                      Debug.WriteLine("Längenüberschreitung bei bitstreamoffset={0} für Lon: {1}",
-                                     bitstreamoffset,
-                                     GetBitStreamString(ref bitstream, basebits4lon, basebits4lat, extrabit != null));
+                                       bitstreamoffset,
+                                       GetBitStreamString(ref bitstream, basebits4lon, basebits4lat, extrabit != null));
                      break;
                   }
 
-                  int lat = GetValueFromBitArray(bitstreamoffset, bits4Latitude, out reallength, same_lat_sign, same_lat_neg_sign, ref bitstream);
+                  reallength = 0;
+                  int lat = GetValueFromBytetArray(bitstreamoffset, bits4Latitude, ref reallength, lat_sign, ref bitstream);
                   bitstreamoffset += reallength;
                   if (reallength <= 0) {
                      bitstreamoffset += 2 * reallength;
                      Debug.WriteLine("Längenüberschreitung bei bitstreamoffset={0} für Lat: {1}",
-                                     bitstreamoffset,
-                                     GetBitStreamString(ref bitstream, basebits4lon, basebits4lat, extrabit != null));
+                                       bitstreamoffset,
+                                       GetBitStreamString(ref bitstream, basebits4lon, basebits4lat, extrabit != null));
                      break;
                   }
 
                   if (extrabit != null)
-                     extrabit.Add(BitFromBitArray(bitstreamoffset++, ref bitstream));
+                     extrabit.Add(GetBitFromByteArray(bitstreamoffset++, ref bitstream));
 
                   // Each point in a poly object is defined relative to the previous point.
-                  rawpoints.Add(new RawPoint(rawpoints[rawpoints.Count - 1].Longitude + lon, rawpoints[rawpoints.Count - 1].Latitude + lat));
+                  rawpoints.Add(new RawPoint(rawpoints[rawpoints.Count - 1].RawUnitsLon + lon, rawpoints[rawpoints.Count - 1].RawUnitsLat + lat));
                }
 #if DEBUG
                // restliche Bits prüfen; sollten 0 sein
                bool err = false;
-               while (bitstreamoffset < bits)
-                  if (BitFromBitArray(bitstreamoffset++, ref bitstream)) {
+               StringBuilder restbits = new StringBuilder();
+               while (bitstreamoffset < bits) {
+                  if (GetBitFromByteArray(bitstreamoffset++, ref bitstream)) {
                      err = true;
-                     break;
-                  }
+                     restbits.Append("1");
+                  } else
+                     restbits.Append("0");
+               }
                if (err)
-                  Debug.WriteLine("vermutlich Fehler bei den \"Restbits\": " + GetBitStreamString(ref bitstream, basebits4lon, basebits4lat, extrabit != null));
+                  Debug.WriteLine("vermutlich Fehler bei den \"Restbits\" " + restbits.ToString() + ": " + GetBitStreamString(ref bitstream, basebits4lon, basebits4lat, extrabit != null));
 #endif
             }
 
             return rawpoints;
          }
 
+         #region Hilfsfunktionen zum Codieren des Bitstreams
+
          /// <summary>
-         /// setzt die "rohen" Punkte (Werte bezüglich des Mittelpunktes des Subdivs und mit korrekter Bitverschiebung) im Byte-Array
+         /// liefert die Anzahl der nötigen Bits um den Wert (ohne Vorzeichen!) zu codieren 
          /// </summary>
-         /// <param name="pt">Punkte</param>
-         /// <param name="bits4lon">nimmt die Anzahl der verwendeten Bits je Longitude auf (in codierter Form; Basebits)</param>
-         /// <param name="bits4lat">nimmt die Anzahl der verwendeten Bits je Latitude auf (in codierter Form; Basebits)</param>
-         /// <param name="extra">Extrabits je Punkt oder null</param>
-         /// <param name="extendedtype">true wenn es sich um Daten für einen extended Typ handelt</param>
+         /// <param name="val"></param>
          /// <returns></returns>
-         public byte[] SetRawPoints(IList<RawPoint> pt, out int basebits4lon, out int basebits4lat, IList<bool> extra, bool extendedtype) {
-            basebits4lon = basebits4lat = 0;
+         static int BitsNeeded(int val) {
+            int bits = val < 0 ? 1 : 0;
+            if (val < 0)
+               val = -val; // nur noch abs. Teil untersuchen
+            while (val != 0) {
+               val >>= 1;
+               bits++;
+            }
+            return bits;
+         }
 
-            if (pt[0].Longitude < -65536 || 65535 < pt[0].Longitude)    // nur UInt16 möglich
-               return null;
-            if (pt[0].Latitude < -65536 || 65535 < pt[0].Latitude)     // nur UInt16 möglich
-               return null;
-            if (pt.Count < 2)
-               return null;
+         static int SetNBitValue(uint bits, int bitcount, int bitoffset, List<byte> bitstream) {
+            uint val = bits & (uint)((1 << bitcount) - 1);   // begrenzt val auf die zulässige Bitanzahl
+            int n = bitcount;
 
+            while (n > 0) {
+               int byteidx = bitoffset / 8;
+               int bitno = bitoffset % 8;
+
+               while (bitstream.Count <= byteidx)
+                  bitstream.Add(0);
+               bitstream[byteidx] |= (byte)((val << bitno) & 0xff);
+
+               val >>= 8 - bitno; // nächstes Byte
+
+               int nput = 8 - bitno;
+               if (nput > n)
+                  nput = n;
+               bitoffset += nput;
+               n -= nput;
+            }
+
+            return bitoffset;
+         }
+
+         static int SetNBitSignedValue(int bits, int bitcount, int bitoffset, List<byte> bitstream) {
+            int top = 1 << (bitcount - 1);      // Maske für Vorzeichen
+            int mask = top - 1;           // Maske für Wert-Bits
+            int val = bits;
+            if (val < 0)
+               val = -val;
+
+            while (val > mask) { // solange der Wertebereich überschritten ist
+               bitoffset = SetNBitValue((uint)top, bitcount, bitoffset, bitstream);
+               val -= mask;
+            }
+            if (bits < 0) {      // für neg. Werte
+               bitoffset = SetNBitValue((uint)((top - val) | top), bitcount, bitoffset, bitstream);   // Codierung neg. Werte:  Wert(n-1) - Bitn * 2^(n-1)       Bitn=[0,1]
+            } else {             // für nichtneg. Werte
+               bitoffset = SetNBitValue((uint)val, bitcount, bitoffset, bitstream);
+            }
+
+            return bitoffset;
+         }
+
+         static int Set1Bit(int bitoffset, List<byte> bitstream) {
+            return SetNBitValue(0x1, 1, bitoffset, bitstream);
+         }
+
+         /// <summary>
+         /// erzeugt die Liste der Deltawerte (der 1. Originalpunkt ist der Bezugspunkt), ermittelt Minima und Maxima und die notwendige Vorzeichenregelung
+         /// </summary>
+         /// <param name="pt"></param>
+         /// <param name="lon_sign"></param>
+         /// <param name="lat_sign"></param>
+         /// <param name="minlon"></param>
+         /// <param name="maxlon"></param>
+         /// <param name="minlat"></param>
+         /// <param name="maxlat"></param>
+         /// <returns></returns>
+         static List<RawPoint> GetDeltaAndSignAndMinMax(IList<RawPoint> pt, out SignType lon_sign, out SignType lat_sign, out int minlon, out int maxlon, out int minlat, out int maxlat) {
+            lon_sign = SignType.unknown;
+            lat_sign = SignType.unknown;
             // Vorzeichenwechsel testen und Min/Max ermitteln
-            bool lon_delta_pos = false;         // > 0
-            bool lon_delta_neg = false;         // < 0
-            bool lat_delta_pos = false;         // > 0
-            bool lat_delta_neg = false;         // < 0
-            int minlon = int.MaxValue;
-            int maxlon = int.MinValue;
-            int minlat = int.MaxValue;
-            int maxlat = int.MinValue;
-
+            minlon = int.MaxValue;
+            maxlon = int.MinValue;
+            minlat = int.MaxValue;
+            maxlat = int.MinValue;
             List<RawPoint> delta = new List<RawPoint>();
             for (int i = 1; i < pt.Count; i++) {
-               int lon_delta = pt[i].Longitude - pt[i - 1].Longitude;
-               int lat_delta = pt[i].Latitude - pt[i - 1].Latitude;
+               int lon_delta = pt[i].RawUnitsLon - pt[i - 1].RawUnitsLon;
+               int lat_delta = pt[i].RawUnitsLat - pt[i - 1].RawUnitsLat;
 
-               if (lon_delta > 0)
-                  lon_delta_pos = true;
-               else if (lon_delta < 0)
-                  lon_delta_neg = true;
+               switch (lon_sign) {
+                  case SignType.unknown:
+                     lon_sign = lon_delta >= 0 ? SignType.allpos : SignType.allneg;
+                     break;
 
-               if (lat_delta > 0)
-                  lat_delta_pos = true;
-               else if (lat_delta < 0)
-                  lat_delta_neg = true;
+                  case SignType.allneg:
+                     if (lon_delta >= 0)
+                        lon_sign = SignType.different;
+                     break;
+
+                  case SignType.allpos:
+                     if (lon_delta < 0)
+                        lon_sign = SignType.different;
+                     break;
+               }
+
+               switch (lat_sign) {
+                  case SignType.unknown:
+                     lat_sign = lat_delta >= 0 ? SignType.allpos : SignType.allneg;
+                     break;
+
+                  case SignType.allneg:
+                     if (lat_delta >= 0)
+                        lat_sign = SignType.different;
+                     break;
+
+                  case SignType.allpos:
+                     if (lat_delta < 0)
+                        lat_sign = SignType.different;
+                     break;
+               }
 
                minlon = Math.Min(minlon, lon_delta);
                maxlon = Math.Max(maxlon, lon_delta);
@@ -2250,115 +2302,79 @@ namespace GarminCore.Files {
 
                delta.Add(new RawPoint(lon_delta, lat_delta));        // Diff. speichern
             }
+            return delta;
+         }
 
-            same_lon_sign = true;
-            same_lon_neg_sign = false;
-            if (lon_delta_pos && lon_delta_neg)
-               same_lon_sign = false;
-            else if (!lon_delta_pos && lon_delta_neg)
-               same_lon_neg_sign = true;
+         /// <summary>
+         /// erzeugt einen Bitstream für die entsprechenden Werte
+         /// </summary>
+         /// <param name="delta">Differenzwerte (bezogen auf den Mittelpunktes des Subdivs)</param>
+         /// <param name="basebits4lon">Basiswert für Bitanzahl</param>
+         /// <param name="basebits4lat">Basiswert für Bitanzahl</param>
+         /// <param name="extra">Liste der Extrabits</param>
+         /// <param name="extendedtype"></param>
+         /// <returns></returns>
+         static List<byte> buildBitstreamBuffer(IList<RawPoint> delta, int basebits4lon, int basebits4lat, SignType lon_sign, SignType lat_sign, IList<bool> extra, bool extendedtype) {
+            // Bit-Anzahl ev. regelkonform machen
+            int bits4lon = RealBits4BaseBits(basebits4lon);
+            int bits4lat = RealBits4BaseBits(basebits4lat);
 
-            same_lat_sign = true;
-            same_lat_neg_sign = false;
-            if (lat_delta_pos && lat_delta_neg)
-               same_lat_sign = false;
-            else if (!lat_delta_pos && lat_delta_neg)
-               same_lat_neg_sign = true;
-
-            // nötige Bitanzahl bestimmen
-            int bits4lon = Math.Max(BitsNeeded((uint)Math.Abs(maxlon)),
-                                    BitsNeeded((uint)Math.Abs(minlon)));
-            int bits4lat = Math.Max(BitsNeeded((uint)Math.Abs(maxlat)),
-                                    BitsNeeded((uint)Math.Abs(minlat)));
-
-            if (!same_lon_sign)
+            if (lon_sign == SignType.different)
                bits4lon++;       // wegen Vorzeichen
-            if (!same_lat_sign)
+            if (lat_sign == SignType.different)
                bits4lat++;
 
-            // Bit-Anzahl ev. regelkonform machen
-            bits4lon = BaseBits2Bits(Bits2BaseBits(bits4lon, !same_lon_sign), !same_lon_sign);
-            bits4lat = BaseBits2Bits(Bits2BaseBits(bits4lat, !same_lat_sign), !same_lat_sign);
-
-            bool bWithExtraBit = extra != null && extra.Count == pt.Count;
-
-            // neuen Byte-Puffer erzeugen
-            int bits4point = bits4lon + bits4lat + (bWithExtraBit ? 1 : 0);
-            int extbits = 2;
-            if (same_lon_sign)
-               extbits++;
-            if (same_lat_sign)
-               extbits++;
-            if (extendedtype)
-               extbits++;
-            if (bWithExtraBit)
-               extbits++;
-
-            // Da aus der Puffergröße und den Bits je Punkt auch die Punktanzahl bestimmt wird, müssen die ungenutzten restlichen Bits
-            // weniger sein als für einen Punkt benötigt werden. Andernfalls muss die Bitanzahl je Punkt willkürlich erhöht werden.
-            int bitstreamlen = extbits + bits4point * delta.Count;
-            int bytes4buffer = bitstreamlen / 8 + (bitstreamlen % 8 > 0 ? 1 : 0);
-            bool bLonIncrement = true;
-            while (bits4point * (1 + delta.Count) <= (8 * bytes4buffer - extbits)) {
-               bits4point++;
-               // abwechselnd Lon und Lat erhöhen
-               if (bLonIncrement) {
-                  bits4lon++;
-                  // Bit-Anzahl ev. regelkonform machen
-                  bits4lon = BaseBits2Bits(Bits2BaseBits(bits4lon, !same_lon_sign), !same_lon_sign);
-               } else {
-                  bits4lat++;
-                  // Bit-Anzahl ev. regelkonform machen
-                  bits4lat = BaseBits2Bits(Bits2BaseBits(bits4lat, !same_lat_sign), !same_lat_sign);
-               }
-               bLonIncrement = !bLonIncrement;
-               bitstreamlen += delta.Count;
-               bytes4buffer = bitstreamlen / 8 + (bitstreamlen % 8 > 0 ? 1 : 0);
-            }
-
-            byte[] bitstream = new byte[bytes4buffer];
+            bool bWithExtraBit = extra != null &&
+                                 extra.Count == delta.Count;
 
             int bitstreampos = 0;
+            List<byte> bitstream = new List<byte>();
+
             // Vorzeichenregeln speichern
-            if (same_lon_sign) {
-               SetBitInBitArray(bitstreampos++, ref bitstream);
-               if (same_lon_neg_sign)
-                  SetBitInBitArray(bitstreampos, ref bitstream);
-               bitstreampos++;
+            if (lon_sign != SignType.different) {
+               Set1Bit(bitstreampos++, bitstream);
+               if (lon_sign == SignType.allneg)
+                  Set1Bit(bitstreampos++, bitstream);
+               else
+                  bitstreampos++;
             } else
                bitstreampos++;
-            if (same_lat_sign) {
-               SetBitInBitArray(bitstreampos++, ref bitstream);
-               if (same_lat_neg_sign)
-                  SetBitInBitArray(bitstreampos, ref bitstream);
-               bitstreampos++;
+
+            if (lat_sign != SignType.different) {
+               Set1Bit(bitstreampos++, bitstream);
+               if (lat_sign == SignType.allneg)
+                  Set1Bit(bitstreampos++, bitstream);
+               else
+                  bitstreampos++;
             } else
                bitstreampos++;
 
             if (extendedtype)
                bitstreampos++;
 
-            if (bWithExtraBit) {
-               if (extra[0])
-                  SetBitInBitArray(bitstreampos, ref bitstream);
+            if (bWithExtraBit)
                bitstreampos++;
-            }
 
             // Werte speichern
             for (int i = 0; i < delta.Count; i++) {
-               bitstreampos += SetValueToBitArray(bitstreampos, bits4lon, !same_lon_sign, delta[i].Longitude, ref bitstream);
-               bitstreampos += SetValueToBitArray(bitstreampos, bits4lat, !same_lat_sign, delta[i].Latitude, ref bitstream);
+
+               if (lon_sign != SignType.different)
+                  bitstreampos = SetNBitValue((uint)Math.Abs(delta[i].RawUnitsLon), bits4lon, bitstreampos, bitstream);
+               else
+                  bitstreampos = SetNBitSignedValue(delta[i].RawUnitsLon, bits4lon, bitstreampos, bitstream);
+
+               if (lat_sign != SignType.different)
+                  bitstreampos = SetNBitValue((uint)Math.Abs(delta[i].RawUnitsLat), bits4lat, bitstreampos, bitstream);
+               else
+                  bitstreampos = SetNBitSignedValue(delta[i].RawUnitsLat, bits4lat, bitstreampos, bitstream);
+
                if (bWithExtraBit)
                   if (extra[i + 1])
-                     SetBitInBitArray(bitstreampos++, ref bitstream);
+                     Set1Bit(bitstreampos++, bitstream);
                   else
                      bitstreampos++;
             }
 
-            basebits4lon = Bits2BaseBits(bits4lon, !same_lon_sign);
-            basebits4lat = Bits2BaseBits(bits4lat, !same_lat_sign);
-
-            //TwoByteLength = bitstream.Length > 255;
             return bitstream;
          }
 
@@ -2370,7 +2386,7 @@ namespace GarminCore.Files {
          /// <param name="basebits4lat"></param>
          /// <param name="extrabit"></param>
          /// <returns></returns>
-         public string GetBitStreamString(ref byte[] bitstream, int basebits4lon, int basebits4lat, bool extrabit = false) {
+         static public string GetBitStreamString(ref byte[] bitstream, int basebits4lon, int basebits4lat, bool extrabit = false) {
             StringBuilder sb = new StringBuilder();
 
             if (bitstream != null && bitstream.Length > 0) {
@@ -2385,9 +2401,9 @@ namespace GarminCore.Files {
                   sb.Append((bitstream[i] & 0x80) > 0 ? "1" : "0");
                }
 
-               InitBitstreamControlValues(ref bitstream);
-
-               int insertpos = bitstreamstart;
+               SignType lon_sign;
+               SignType lat_sign;
+               int insertpos = ReadBitstreamSigns(ref bitstream, out lon_sign, out lat_sign);
                sb.Insert(insertpos++, ":");
 
                if (extrabit) {
@@ -2396,8 +2412,12 @@ namespace GarminCore.Files {
                   sb.Insert(insertpos++, "]");
                }
 
-               int bits4Longitude = BaseBits2Bits(basebits4lon, !same_lon_sign);
-               int bits4Latitude = BaseBits2Bits(basebits4lat, !same_lat_sign);
+               int bits4Longitude = RealBits4BaseBits(basebits4lon);
+               int bits4Latitude = RealBits4BaseBits(basebits4lat);
+               if (lon_sign == SignType.different)
+                  bits4Longitude++;
+               if (lat_sign == SignType.different)
+                  bits4Latitude++;
 
                while (insertpos < sb.Length) {
                   insertpos += bits4Longitude;
@@ -2421,19 +2441,155 @@ namespace GarminCore.Files {
                                         bits4Longitude,
                                         basebits4lat,
                                         bits4Latitude,
-                                        same_lon_sign ? (same_lon_neg_sign ? "-" : "+") : "*",
-                                        same_lat_sign ? (same_lat_neg_sign ? "-" : "+") : "*"));
+                                        lon_sign == SignType.different ? "*" : lon_sign == SignType.allpos ? "+" : "-",
+                                        lat_sign == SignType.different ? "*" : lat_sign == SignType.allpos ? "+" : "-"));
             }
             return sb.ToString();
          }
 
-         public override string ToString() {
-            return string.Format("same_lon_sign {0}, same_lon_neg_sign {1}, same_lat_sign {2}, same_lat_neg_sign {3}", same_lon_sign, same_lon_neg_sign, same_lat_sign, same_lat_neg_sign);
+         #endregion
+
+         /// <summary>
+         /// setzt die Punkte (Differenzwerte bezüglich des Mittelpunktes des Subdivs und mit korrekter Bitverschiebung) im Byte-Array
+         /// </summary>
+         /// <param name="pt">Punkte</param>
+         /// <param name="basebits4lon">nimmt die Anzahl der verwendeten Bits je Longitude auf (in codierter Form; Basebits)</param>
+         /// <param name="basebits4lat">nimmt die Anzahl der verwendeten Bits je Latitude auf (in codierter Form; Basebits)</param>
+         /// <param name="extra">Extrabits je Punkt oder null</param>
+         /// <param name="extendedtype">true wenn es sich um Daten für einen extended Typ handelt</param>
+         /// <returns></returns>
+         static public byte[] SetRawPoints(IList<RawPoint> pt, out int basebits4lon, out int basebits4lat, IList<bool> extra, bool extendedtype) {
+            basebits4lon = basebits4lat = 0;
+
+            if (0xFFFF < Math.Abs(pt[0].RawUnitsLon) ||    // nur UInt16 möglich
+                0xFFFF < Math.Abs(pt[0].RawUnitsLat) ||
+                pt.Count < 2) // zu wenig Punkte
+               return null;
+
+            int minlon, maxlon, minlat, maxlat;
+            SignType lon_sign, lat_sign;
+            List<RawPoint> delta = GetDeltaAndSignAndMinMax(pt, out lon_sign, out lat_sign, out minlon, out maxlon, out minlat, out maxlat);
+
+            // max. nötige Bitanzahl (ohne Vorzeichen) bestimmen
+            int bits4lon = Math.Max(BitsNeeded(minlon), BitsNeeded(maxlon));
+            int bits4lat = Math.Max(BitsNeeded(minlat), BitsNeeded(maxlat));
+
+            basebits4lon = BaseBits4RealBits(bits4lon);
+            basebits4lat = BaseBits4RealBits(bits4lat);
+
+            List<byte> bs_best = buildBitstreamBuffer(delta, basebits4lon, basebits4lat, lon_sign, lat_sign, extra, extendedtype); // Standardcodierung
+
+            if (lon_sign == SignType.different) // ev. kürzerer Bitstream möglich
+               for (int bb4lon = basebits4lon - 1; bb4lon >= 0; bb4lon--) {
+                  List<byte> bs = buildBitstreamBuffer(delta, bb4lon, basebits4lat, lon_sign, lat_sign, extra, extendedtype);
+                  if (bs.Count < bs_best.Count) {
+                     bs_best = bs;
+                     basebits4lon = bb4lon;
+                  } else
+                     break;
+               }
+
+            if (lat_sign == SignType.different) // ev. kürzerer Bitstream möglich
+               for (int bb4lat = basebits4lat - 1; bb4lat >= 0; bb4lat--) {
+                  List<byte> bs = buildBitstreamBuffer(delta, basebits4lon, bb4lat, lon_sign, lat_sign, extra, extendedtype);
+                  if (bs.Count < bs_best.Count) {
+                     bs_best = bs;
+                     basebits4lat = bb4lat;
+                  } else
+                     break;
+               }
+
+            return bs_best.ToArray();
          }
 
-      }
+         #region zum Test der Bitstreamcodierung und -decodierung
 
-      #endregion
+#if DEBUG
+         static public void SimpleTest() {
+
+            try {
+
+               //List<RawPoint> orgpt = new List<GeoDataBitstream.RawPoint>();
+               //orgpt.Add(new RawPoint(8, 30));
+               //orgpt.Add(new RawPoint(6, 30));
+               //SimpleTest(orgpt);
+
+               //List<RawPoint> orgpt = new List<GeoDataBitstream.RawPoint>();
+               //orgpt.Add(new RawPoint(4, 36));
+               //orgpt.Add(new RawPoint(11, 47));
+               //orgpt.Add(new RawPoint(49, 43));
+               //SimpleTest(orgpt);
+
+               SimpleTest(50, 1);
+               for (int i = 0; i < 10000000; i++)
+                  SimpleTest(1500, 0);
+
+            } catch (Exception ex) {
+
+               throw;
+            }
+
+         }
+
+         static void SimpleTest(int absmax = 50, int seed = 0) {
+            // zufällige RawPoints-Liste
+            Random r = seed != 0 ?
+                           new Random(seed) :
+                           new Random(); // Init. mit der Zeit
+
+            int l = 2 + r.Next(100);
+            List<RawPoint> orgpt = new List<RawPoint>();
+            for (int i = 0; i < l; i++)
+               orgpt.Add(new RawPoint(r.Next(absmax), r.Next(absmax)));
+
+            SimpleTest(orgpt);
+         }
+
+         static void SimpleTest(List<RawPoint> orgpt) {
+            int basebits4lon_org, basebits4lat_org;
+            byte[] encoded = SetRawPoints(orgpt, out basebits4lon_org, out basebits4lat_org, null, false);
+            List<RawPoint> decodedpt = GetRawPoints(ref encoded, basebits4lon_org, basebits4lat_org, orgpt[0].RawUnitsLon, orgpt[0].RawUnitsLat, null, false);
+
+            // Vergleich
+            if (orgpt.Count != decodedpt.Count) {  // darf nur durch restliche 0-Bits im letzten Byte entstehen -> nur 0-Differenzen
+               bool only0 = false;
+               if (orgpt.Count < decodedpt.Count) {
+                  int lastorgidx = orgpt.Count - 1;
+                  only0 = true;
+                  for (int i = lastorgidx + 1; i < decodedpt.Count; i++) {
+                     if (decodedpt[lastorgidx].RawUnitsLon != decodedpt[i].RawUnitsLon ||
+                         decodedpt[lastorgidx].RawUnitsLat != decodedpt[i].RawUnitsLat) {
+                        only0 = false;
+                        break;
+                     }
+                  }
+               }
+               if (!only0) {
+                  string.Format("orgpt.Count <> decodedpt.Count ({0} <> {1})", orgpt.Count, decodedpt.Count);
+                  Debug.WriteLine("orgpt.Count={0}, basebits4lon_org={1}, basebits4lat_org={2}", orgpt.Count, basebits4lon_org, basebits4lat_org);
+                  for (int j = 0; j < orgpt.Count; j++)
+                     Debug.WriteLine(orgpt[j].ToString());
+                  return;
+               }
+            }
+
+            for (int i = 0; i < orgpt.Count && i < decodedpt.Count; i++) {
+               if (orgpt[i].RawUnitsLon != decodedpt[i].RawUnitsLon ||
+                   orgpt[i].RawUnitsLat != decodedpt[i].RawUnitsLat) {
+                  Debug.WriteLine("orgpt[{0}] = {1}  <>  decodedpt[{0}] = {2}", i, orgpt[i].ToString(), decodedpt[i].ToString());
+                  Debug.WriteLine("orgpt.Count={0}, basebits4lon={1}, basebits4lat={2}", orgpt.Count, basebits4lon_org, basebits4lat_org);
+                  for (int j = 0; j < orgpt.Count; j++)
+                     Debug.WriteLine(orgpt[j].ToString());
+                  break;
+               }
+            }
+         }
+
+#endif
+
+         #endregion
+
+      }
 
 
       /// <summary>
@@ -2448,7 +2604,7 @@ namespace GarminCore.Files {
 
 
       public StdFile_RGN(StdFile_TRE tre)
-         : base("RGN") {
+            : base("RGN") {
          Headerlength = 0x7D;
 
          TREFile = tre;
@@ -2456,7 +2612,7 @@ namespace GarminCore.Files {
       }
 
       public override void ReadHeader(BinaryReaderWriter br) {
-         base.ReadCommonHeader(br, Typ);
+         base.ReadCommonHeader(br, Type);
 
          Filesections.ClearSections();
 
@@ -2484,13 +2640,17 @@ namespace GarminCore.Files {
          Filesections.AddSection((int)InternalFileSections.ExtLinesBlock, new DataBlock(ExtLinesBlock));
          Filesections.AddSection((int)InternalFileSections.ExtPointsBlock, new DataBlock(ExtPointsBlock));
          Filesections.AddSection((int)InternalFileSections.UnknownBlock_0x71, new DataBlock(UnknownBlock_0x71));
-         if (GapOffset > HeaderOffset + Headerlength) // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
-            Filesections.AddSection((int)InternalFileSections.PostHeaderData, HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+
+         // GapOffset und DataOffset setzen
+         SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
+
+         if (GapOffset > HeaderOffset + Headerlength) { // nur möglich, wenn extern z.B. auf den nächsten Header gesetzt
+            PostHeaderDataBlock = new DataBlock(HeaderOffset + Headerlength, GapOffset - (HeaderOffset + Headerlength));
+            Filesections.AddSection((int)InternalFileSections.PostHeaderData, PostHeaderDataBlock);
+         }
 
          // Datenblöcke einlesen
          Filesections.ReadSections(br);
-
-         SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
       }
 
       protected override void DecodeSections() {
@@ -2916,13 +3076,13 @@ namespace GarminCore.Files {
          byte[] data ={
 
               0x10, 0xc4, 0xe7, 0xff, 0x0d, 0x00, 0xf1, 0x19, 0x01, 0x1c, 0x01, 0x97, 0x01, 0x54
-, 0x6f, 0x0d, 0x40, 0x64, 0xe0, 0x00, 0x03, 0x73, 0x5a, 0x6b, 0xe0, 0x40, 0x12, 0x75, 0xe0, 0x40
-, 0x03, 0x7e, 0xe0, 0x40, 0x06, 0x8d, 0xe0, 0x40, 0x02, 0x9a, 0xe0, 0x40, 0x0f, 0xa3, 0xe0, 0x40
-, 0x11, 0xad, 0xe0, 0x40, 0x07, 0x9a, 0xe0, 0x40, 0x0e, 0xbf, 0xe0, 0x40, 0x04, 0xc7, 0xe0, 0x40
-, 0x01, 0xd2, 0xe0,
+   , 0x6f, 0x0d, 0x40, 0x64, 0xe0, 0x00, 0x03, 0x73, 0x5a, 0x6b, 0xe0, 0x40, 0x12, 0x75, 0xe0, 0x40
+   , 0x03, 0x7e, 0xe0, 0x40, 0x06, 0x8d, 0xe0, 0x40, 0x02, 0x9a, 0xe0, 0x40, 0x0f, 0xa3, 0xe0, 0x40
+   , 0x11, 0xad, 0xe0, 0x40, 0x07, 0x9a, 0xe0, 0x40, 0x0e, 0xbf, 0xe0, 0x40, 0x04, 0xc7, 0xe0, 0x40
+   , 0x01, 0xd2, 0xe0,
 
-0x40, 0x05, 0xde, 0xe0, 0x40, 0x10, 0xe9, 0xe0,
-0x40, 0x08, 0xbb, 0xe0, 0x80, 0x9a
+   0x40, 0x05, 0xde, 0xe0, 0x40, 0x10, 0xe9, 0xe0,
+   0x40, 0x08, 0xbb, 0xe0, 0x80, 0x9a
                      };
 
 
