@@ -9,12 +9,16 @@
 
 
 Routing/
+Stuff/
+ms/
 Test/
 bin/[Dd]ebug
 obj/
 .vs/
 Back/
 [Bb]ackup/
+
+*.pdb
 *.zip
 *.odt
 *.pdn
