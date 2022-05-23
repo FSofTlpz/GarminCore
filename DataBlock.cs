@@ -88,8 +88,8 @@ namespace GarminCore {
       /// </summary>
       /// <param name="br"></param>
       public void Read(BinaryReaderWriter br) {
-         Offset = br.ReadUInt32();
-         Length = br.ReadUInt32();
+         Offset = br.Read4UInt();
+         Length = br.Read4UInt();
       }
       /// <summary>
       /// schreibt die Blockdaten

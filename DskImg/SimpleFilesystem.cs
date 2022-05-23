@@ -35,43 +35,26 @@ using System.IO;
 
 namespace GarminCore.DskImg {
 
+   /// <summary>
+   /// IMG-Datei mit ihrem Dateisystem
+   /// </summary>
    public class SimpleFilesystem : IDisposable {
 
       /// <summary>
-      /// Pfad zu den temp. Hintergrunddateien
+      /// Header der IMG-Datei
       /// </summary>
-      /// <param name="backgroundpath"></param>
-      public SimpleFilesystem(string backgroundpath = null) {
-         ImgHeader = new Header();
+      public Header ImgHeader;
 
-         ImgHeader.FileBlockLength = 0x200;
-         ImgHeader.FATBlockLength = 0x200;
-         ImgHeader.HeadSectors = 2;
-
-         Files = new List<FileProps>();
-         file4block = new SortedDictionary<ushort, int>();
-         preblocks4read = -1;
-         binreader = null;
-
-         if (string.IsNullOrEmpty(backgroundpath)) {
-            backgroundpath = Path.GetTempFileName();
-            File.Delete(backgroundpath);
-         }
-         this.backgroundpath = backgroundpath;
-         backgroundpathcreated = false;
-
-         if (this.backgroundpath != "." &&
-             !Directory.Exists(this.backgroundpath)) {
-            Directory.CreateDirectory(this.backgroundpath);
-            backgroundpathcreated = true;
-         }
-      }
+      /// <summary>
+      /// Größe der FAT (einschließlich Root) in Byte
+      /// </summary>
+      public int FATSize { get; private set; }
 
 
       /// <summary>
       /// interne Daten einer Datei
       /// </summary>
-      class FileProps : IDisposable {
+      protected class FileProps : IDisposable {
 
          public FileProps(string name, uint filesize, string backgroundfile = null) {
             Name = FATBlock.GetValidFullname(name);
@@ -113,7 +96,7 @@ namespace GarminCore.DskImg {
          /// <summary>
          /// belegte Pseudo-Datenblöcke [0...] (Position je Blocknummer)
          /// </summary>
-         SortedDictionary<UInt16, int> PseudoFileBlockList;
+         readonly SortedDictionary<UInt16, int> PseudoFileBlockList;
 
          /// <summary>
          /// löscht die Pseudoblock-Liste
@@ -134,8 +117,7 @@ namespace GarminCore.DskImg {
          /// <param name="blockno"></param>
          /// <returns></returns>
          public int IndexOfPseudoFileBlock(UInt16 blockno) {
-            int idx;
-            if (PseudoFileBlockList.TryGetValue(blockno, out idx))
+            if (PseudoFileBlockList.TryGetValue(blockno, out int idx))
                return idx;
             return -1;
          }
@@ -196,45 +178,72 @@ namespace GarminCore.DskImg {
       }
 
       /// <summary>
-      /// Header der IMG-Datei
-      /// </summary>
-      public Header ImgHeader;
-
-      /// <summary>
-      /// Größe der FAT (einschließlich Root) in Byte
-      /// </summary>
-      public int FATSize { get; private set; }
-
-      /// <summary>
       /// Liste aller Dateien
       /// </summary>
-      List<FileProps> Files;
+      protected List<FileProps> Files;
 
       /// <summary>
       /// Dateiindex für jede Blocknummer
       /// </summary>
-      SortedDictionary<UInt16, int> file4block;
+      Dictionary<UInt16, int> file4block;
 
       /// <summary>
       /// Anzahl der Blöcke vor den Datei-Datenblöcken in der IMG-Datei (für das Lesen der Daten)
       /// </summary>
-      int preblocks4read;
+      protected int preblocks4read;
 
       /// <summary>
       /// BinaryReaderWriter für die zu lesende IMG-Datei
       /// </summary>
-      BinaryReaderWriter binreader;
+      protected BinaryReaderWriter binreader;
 
       /// <summary>
       /// Pfad zu den temp. Hintergrunddateien
       /// </summary>
-      string backgroundpath;
+      readonly string backgroundpath;
 
       /// <summary>
       /// Pfad zu den temp. Hintergrunddateien selbst erzeugt ?
       /// </summary>
-      bool backgroundpathcreated;
+      readonly bool backgroundpathcreated;
 
+
+      /// <summary>
+      /// IMG-Datei-Verwaltung mit temp. Hintergrunddateien
+      /// </summary>
+      /// <param name="backgroundpath">wenn null, dann Path.GetTempFileName()</param>
+      /// <param name="withbackgroundfiles">wenn false, dann ohne Hintergrunddateien</param>
+      public SimpleFilesystem(string backgroundpath = null, bool withbackgroundfiles = true) {
+         init();
+
+         if (withbackgroundfiles) {
+            if (string.IsNullOrEmpty(backgroundpath)) {
+               backgroundpath = Path.GetTempFileName();
+               File.Delete(backgroundpath);
+            }
+            this.backgroundpath = backgroundpath;
+            backgroundpathcreated = false;
+
+            if (this.backgroundpath != "." &&
+                !Directory.Exists(this.backgroundpath)) {
+               Directory.CreateDirectory(this.backgroundpath);
+               backgroundpathcreated = true;
+            }
+         }
+      }
+
+      protected void init() {
+         ImgHeader = new Header {
+            FileBlockLength = 0x200,
+            FATBlockLength = 0x200,
+            HeadSectors = 2
+         };
+
+         Files = new List<FileProps>();
+         file4block = new Dictionary<ushort, int>();
+         preblocks4read = -1;
+         binreader = null;
+      }
 
       /// <summary>
       /// der Stream meldet eine neue Dateigröße
@@ -259,7 +268,7 @@ namespace GarminCore.DskImg {
       /// </summary>
       /// <param name="filename"></param>
       /// <returns></returns>
-      string GetBackFilename(string filename) {
+      string getBackFilename(string filename) {
          return Path.Combine(backgroundpath, filename);
       }
 
@@ -268,7 +277,7 @@ namespace GarminCore.DskImg {
       /// </summary>
       /// <param name="filesize"></param>
       /// <returns></returns>
-      int Blocks4File(int filesize) {
+      int blocks4File(int filesize) {
          return filesize / ImgHeader.FileBlockLength + (filesize % ImgHeader.FileBlockLength != 0 ? 1 : 0);
       }
 
@@ -278,7 +287,7 @@ namespace GarminCore.DskImg {
       /// <param name="filesize"></param>
       /// <returns></returns>
       int FATBlocks4File(int filesize) {
-         int blocks = Blocks4File(filesize);
+         int blocks = blocks4File(filesize);
          int maxblocks = FATBlock.MaxBlocks(ImgHeader.FATBlockLength);
          return blocks / maxblocks + (blocks % maxblocks != 0 ? 1 : 0);
       }
@@ -286,11 +295,12 @@ namespace GarminCore.DskImg {
       /// <summary>
       /// liefert die aktuellen Dateidaten (über den <see cref="BinaryReaderWriter"/> des Dateisystems oder aus der Backup-Datei)
       /// <para>Wegen der Funktion Stream.Read() darf die internen Datei nicht größer als 0x3FFFFFFF (2 GB) sein.</para>
+      /// <para>Wenn der IMG-BinaryReaderWriter geliefert wird, werden die Datei-Daten in einen neuen Speicherbereich kopiert und dieser geliefert.</para>
       /// </summary>
       /// <param name="file"></param>
       /// <param name="br"></param>
       /// <returns></returns>
-      byte[] GetFiledata(FileProps file, BinaryReaderWriter br) {
+      protected byte[] getFiledata(FileProps file, BinaryReaderWriter br) {
          if (br == null ||
              preblocks4read < 0 ||
              File.Exists(file.Backgroundfile)) {
@@ -301,7 +311,7 @@ namespace GarminCore.DskImg {
          } else {
             if (br != null &&
                 preblocks4read > 0) {                          // aus dem Originalstream Daten einlesen
-               byte[] data = new byte[file.Filesize];
+               byte[] data = new byte[file.Filesize];          // neuer Speicherbereich
                UInt16[] blocks = file.PseudoFileBlocks();
 
                for (int i = 0; i < blocks.Length; i++) {
@@ -319,7 +329,52 @@ namespace GarminCore.DskImg {
       }
 
       /// <summary>
-      /// testet, ob der Dateiname schon existiert
+      /// erzeugt so viele Blöcke wie nötig, um die Blöcke für die Datei zu adressieren
+      /// </summary>
+      /// <param name="filename">Dateiname ("." für Root; "" oder null für einen ungenutzten Block)</param>
+      /// <param name="filesize">Dateigröße</param>
+      /// <param name="startblockno">erste Blocknummer für den Dateiinhalt</param>
+      /// <returns></returns>
+      List<FATBlock> buildFATEntry(string filename, uint filesize, ref ushort startblockno) {
+         List<FATBlock> lst = new List<FATBlock>();
+
+         FATBlock bl = new FATBlock((uint)ImgHeader.FATBlockLength);
+
+         if (!string.IsNullOrEmpty(filename)) {
+            bl.Used = true;
+            bl.Flag = (byte)(filename == "." ? 0x03 : 0x00);
+            bl.FullName = filename;
+            bl.Filesize = filesize;
+            bl.Part = 0;
+
+            int blocks4file = blocks4File((int)filesize);
+            do {
+               bl.ClearBlockNumbers();
+               while (blocks4file > 0 &&
+                      !bl.BlockTableIsFull) {
+                  bl.AppendBlockNumber(startblockno++);
+                  blocks4file--;
+               }
+               lst.Add(bl);
+
+               if (blocks4file > 0) {
+                  bl = new FATBlock(bl);
+                  bl.Part++;
+                  bl.Filesize = 0;
+               }
+            }
+            while (blocks4file > 0);
+         } else {
+            bl.Used = false;
+
+            lst.Add(bl);
+         }
+
+         return lst;
+      }
+
+      /// <summary>
+      /// testet, ob der Dateiname schon als interne Datei existiert
       /// </summary>
       /// <param name="filename"></param>
       /// <returns></returns>
@@ -328,7 +383,7 @@ namespace GarminCore.DskImg {
       }
 
       /// <summary>
-      /// liefert den Index einer Datei (oder eine negative Zahl)
+      /// liefert den Index einer internen Datei (oder eine negative Zahl)
       /// </summary>
       /// <param name="filename"></param>
       /// <returns></returns>
@@ -340,7 +395,7 @@ namespace GarminCore.DskImg {
       }
 
       /// <summary>
-      /// liefert die Dateianzahl
+      /// liefert die Dateianzahl der internen Dateien
       /// </summary>
       public int FileCount {
          get {
@@ -349,7 +404,7 @@ namespace GarminCore.DskImg {
       }
 
       /// <summary>
-      /// liefert den Dateinamen
+      /// liefert den Dateinamen der internen Datei
       /// </summary>
       /// <param name="idx"></param>
       /// <returns></returns>
@@ -358,7 +413,7 @@ namespace GarminCore.DskImg {
       }
 
       /// <summary>
-      /// liefert die Dateigröße
+      /// liefert die Dateigröße der internen Datei
       /// </summary>
       /// <param name="idx"></param>
       /// <returns></returns>
@@ -367,7 +422,7 @@ namespace GarminCore.DskImg {
       }
 
       /// <summary>
-      /// setzt den Dateinamen neu
+      /// setzt den internen Dateinamen neu
       /// </summary>
       /// <param name="oldfilename"></param>
       /// <param name="filename"></param>
@@ -383,7 +438,7 @@ namespace GarminCore.DskImg {
       }
 
       /// <summary>
-      /// fügt eine Datei hinzu
+      /// fügt eine interne Datei hinzu
       /// </summary>
       /// <param name="filename"></param>
       /// <param name="filesize"></param>
@@ -393,16 +448,16 @@ namespace GarminCore.DskImg {
          if (!FilenameExist(filename)) {
             pos = Math.Max(0, Math.Min(pos, Files.Count));
             if (pos == Files.Count)
-               Files.Add(new FileProps(filename, filesize, GetBackFilename(filename)));
+               Files.Add(new FileProps(filename, filesize, getBackFilename(filename)));
             else
-               Files.Insert(pos, new FileProps(filename, filesize, GetBackFilename(filename)));
+               Files.Insert(pos, new FileProps(filename, filesize, getBackFilename(filename)));
             return true;
          }
          return false;
       }
 
       /// <summary>
-      /// löscht eine Datei
+      /// löscht eine interne Datei
       /// </summary>
       /// <param name="filename"></param>
       /// <returns></returns>
@@ -418,7 +473,7 @@ namespace GarminCore.DskImg {
       }
 
       /// <summary>
-      /// liefert die Basisdateinamen (aller TRE-Dateien)
+      /// liefert die Basisdateinamen (aller internen TRE-Dateien, also i.A. 1)
       /// </summary>
       /// <returns></returns>
       public List<string> AllBasenames() {
@@ -445,26 +500,26 @@ namespace GarminCore.DskImg {
          return names;
       }
 
-
       /// <summary>
-      /// liefert einen BinaryReaderWriter für die Datei oder null
+      /// liefert einen eigenen BinaryReaderWriter für die interne Datei oder null
       /// </summary>
       /// <param name="filename"></param>
       /// <returns></returns>
       public BinaryReaderWriter GetBinaryReaderWriter4File(string filename) {
          int idx = FilenameIdx(filename);
          if (idx >= 0) {
-            MyStream stream = new MyStream(Files[idx].Backgroundfile, GetFiledata(Files[idx], binreader), Files[idx], false);
+            MyStream stream = new MyStream(Files[idx].Backgroundfile, getFiledata(Files[idx], binreader), Files[idx], false);
             stream.NewSize += stream_NewSize;
-            BinaryReaderWriter br= new BinaryReaderWriter(stream);
-            br.XOR = ImgHeader.XOR;
+            BinaryReaderWriter br = new BinaryReaderWriter(stream) {
+               XOR = ImgHeader.XOR
+            };
             return br;
          }
          return null;
       }
 
       /// <summary>
-      /// liest das gesamte Dateisystem (ohne die eigentlichen Daten) ein
+      /// liest das gesamte Dateisystem (aber ohne die Daten interner Dateien) ein und "behält" den <see cref="BinaryReaderWriter"/>
       /// <para>Der Dateiinhalt wird immer nur bei Bedarf eingelesen.</para>
       /// </summary>
       /// <param name="br"></param>
@@ -472,19 +527,17 @@ namespace GarminCore.DskImg {
          binreader = br;
 
          // Header einlesen
-         br.Seek(0);
-         ImgHeader.Read(br);
+         binreader.Seek(0);
+         ImgHeader.Read(binreader);
 
          List<FATBlock> root = new List<FATBlock>();
          List<FATBlock> fat = new List<FATBlock>();
 
          // gesamte FAT einlesen
-         fat = new List<FATBlock>();
-
          int sumfatblocks = -1;
          while (sumfatblocks != 0) {
             FATBlock bl = new FATBlock((uint)ImgHeader.FATBlockLength);
-            bl.Read(br);
+            bl.Read(binreader);
             if (sumfatblocks < 0)
                sumfatblocks = ((int)bl.Filesize - ImgHeader.HeaderLength) / ImgHeader.FATBlockLength;     // Anzahl der FAT-Blocks aus dem 1. Block ("Dateigröße") ermitteln
 
@@ -498,20 +551,23 @@ namespace GarminCore.DskImg {
          // Dateiliste erzeugen
          file4block.Clear();
          Files.Clear();
-         preblocks4read = (UInt16)(root[0].Filesize / ImgHeader.FileBlockLength);     // Anzahl der Datenblöcke bis zum Start des echten Dateibereiches
+         preblocks4read = (UInt16)(root[0].Filesize / ImgHeader.FileBlockLength);     // Anzahl der Datenblöcke bis zum Start des echten Dateiinhaltbereiches
+         if (root[0].Filesize % ImgHeader.FileBlockLength != 0)
+            preblocks4read++;
          FATSize = (int)root[0].Filesize - ImgHeader.HeaderLength;
+
          for (int block = 0; block < fat.Count; block++) {
             FATBlock bl = fat[block];
             if (bl.Used) {
-               FileProps file = null;
+               FileProps file;
                if (bl.Part == 0) {
                   string name = bl.FullName;
                   if (name != ".") {
-                     file = new FileProps(name, bl.Filesize, GetBackFilename(name));
+                     file = new FileProps(name, bl.Filesize, string.IsNullOrEmpty(backgroundpath) ? null : getBackFilename(name));
                      Files.Add(file);
                   }
                }
-               int fileidx = fileidx = Files.Count - 1;
+               int fileidx = Files.Count - 1;
                file = Files[fileidx];
                for (int j = 0; j < bl.BlockNumberCount; j++) {             // alle Blocknummern registrieren
                   UInt16 blockno = (UInt16)(bl.GetBlockNumber(j) - preblocks4read);
@@ -552,14 +608,14 @@ namespace GarminCore.DskImg {
             fileblocks = 0;
             fatblocks = 0;
             foreach (FileProps file in Files) {
-               fileblocks += Blocks4File((int)file.Filesize);
+               fileblocks += blocks4File((int)file.Filesize);
                fatblocks += FATBlocks4File((int)file.Filesize);
             }
             // Anzahl der Rootblocks und Preblocks bestimmen
             int newrootblocks = 0;
             rootblocks = 1;
             do {
-               prefileblocks = Blocks4File(ImgHeader.HeaderLength + (rootblocks + fatblocks) * ImgHeader.FATBlockLength);
+               prefileblocks = blocks4File(ImgHeader.HeaderLength + (rootblocks + fatblocks) * ImgHeader.FATBlockLength);
                newrootblocks = FATBlocks4File(prefileblocks * ImgHeader.FileBlockLength);
                if (newrootblocks != rootblocks) // Platz in der aktuellen Root ist noch nicht ausreichend
                   rootblocks = newrootblocks;
@@ -592,14 +648,14 @@ namespace GarminCore.DskImg {
 
          UInt16 block = 0;
          // Root schreiben (Datei ".")
-         List<FATBlock> fatbl = BuildFATEntry(".", (uint)(prefileblocks * ImgHeader.FileBlockLength), ref block);
+         List<FATBlock> fatbl = buildFATEntry(".", (uint)(prefileblocks * ImgHeader.FileBlockLength), ref block);
          foreach (FATBlock item in fatbl)
             item.Write(wr);
 
          // die eigentliche FAT schreiben
          block = (UInt16)prefileblocks; // 1. Blocknummer des Dateibereiches
          foreach (FileProps file in Files) {
-            fatbl = BuildFATEntry(file.Name, file.Filesize, ref block);
+            fatbl = buildFATEntry(file.Name, file.Filesize, ref block);
             foreach (FATBlock item in fatbl)
                item.Write(wr);
          }
@@ -607,7 +663,7 @@ namespace GarminCore.DskImg {
          // ev. leere, ungenutzte Blöcke schreiben
          long filestart = prefileblocks * ImgHeader.FileBlockLength;
          while (wr.Position < filestart) {
-            fatbl = BuildFATEntry(null, 0, ref block);
+            fatbl = buildFATEntry(null, 0, ref block);
             foreach (FATBlock item in fatbl)
                item.Write(wr);
          }
@@ -616,7 +672,7 @@ namespace GarminCore.DskImg {
 
          // Daten schreiben
          foreach (FileProps file in Files) {
-            byte[] data = GetFiledata(file, binreader);
+            byte[] data = getFiledata(file, binreader);
             int offset = 0;
             do {
                if (offset + ImgHeader.FileBlockLength <= data.Length)   // vollständigen Block schreiben
@@ -631,51 +687,6 @@ namespace GarminCore.DskImg {
             } while (offset < data.Length);
          }
 
-      }
-
-      /// <summary>
-      /// erzeugt so viele Blöcke wie nötig, um die Blöcke für die Datei zu adressieren
-      /// </summary>
-      /// <param name="filename">Dateiname ("." für Root; "" oder null für einen ungenutzten Block)</param>
-      /// <param name="filesize">Dateigröße</param>
-      /// <param name="startblockno">erste Blocknummer für den Dateiinhalt</param>
-      /// <returns></returns>
-      List<FATBlock> BuildFATEntry(string filename, uint filesize, ref ushort startblockno) {
-         List<FATBlock> lst = new List<FATBlock>();
-
-         FATBlock bl = new FATBlock((uint)ImgHeader.FATBlockLength);
-
-         if (!string.IsNullOrEmpty(filename)) {
-            bl.Used = true;
-            bl.Flag = (byte)(filename == "." ? 0x03 : 0x00);
-            bl.FullName = filename;
-            bl.Filesize = filesize;
-            bl.Part = 0;
-
-            int blocks4file = Blocks4File((int)filesize);
-            do {
-               bl.ClearBlockNumbers();
-               while (blocks4file > 0 &&
-                      !bl.BlockTableIsFull) {
-                  bl.AppendBlockNumber(startblockno++);
-                  blocks4file--;
-               }
-               lst.Add(bl);
-
-               if (blocks4file > 0) {
-                  bl = new FATBlock(bl);
-                  bl.Part++;
-                  bl.Filesize = 0;
-               }
-            }
-            while (blocks4file > 0);
-         } else {
-            bl.Used = false;
-
-            lst.Add(bl);
-         }
-
-         return lst;
       }
 
       public override string ToString() {
@@ -717,7 +728,7 @@ namespace GarminCore.DskImg {
                file.Dispose();
             if (backgroundpathcreated)
                try {
-                  Directory.Delete(backgroundpath, false);
+                  Directory.Delete(backgroundpath, true);
                } finally { // Fehler ignorieren
 
                }

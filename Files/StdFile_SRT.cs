@@ -88,10 +88,10 @@ namespace GarminCore.Files {
          }
 
          public void Read(BinaryReaderWriter br) {
-            Headerlength = br.ReadUInt16();
-            Id1 = br.ReadUInt16();
-            Id2 = br.ReadUInt16();
-            Codepage = br.ReadUInt16();
+            Headerlength = br.Read2AsUShort();
+            Id1 = br.Read2AsUShort();
+            Id2 = br.Read2AsUShort();
+            Codepage = br.Read2AsUShort();
             br.SetEncoding(Codepage);
 
             br.ReadBytes(Unknown1);
@@ -100,7 +100,7 @@ namespace GarminCore.Files {
             br.ReadBytes(Unknown3);
             ExpansionsBlock.Read(br);
             br.ReadBytes(Unknown4);
-            CharTabOffset = br.ReadUInt32();
+            CharTabOffset = br.Read4UInt();
             br.ReadBytes(Unknown5);
 
             if (Headerlength > 0x34) {

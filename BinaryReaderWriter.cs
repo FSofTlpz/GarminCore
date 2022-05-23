@@ -44,23 +44,27 @@ namespace GarminCore {
    /// </summary>
    public class BinaryReaderWriter : IDisposable {
 
-      /// <summary>
-      /// Der eigentliche Stream.
-      /// </summary>
-      Stream basestream;
-
-      /// <summary>
-      /// Standard-Cosierung für Zeichenketten
-      /// </summary>
-      Encoding stdencoding = Encoding.GetEncoding(1252); //new ASCIIEncoding();
-
-      byte[] m_buffer = new byte[8];
+      readonly byte[] m_buffer = new byte[8];
       char[] m_1char_buffer = new char[1];
 
       /// <summary>
       /// falls die Daten XOR'd sind (NUR ZUM LESEN)
       /// </summary>
       public byte XOR { get; set; }
+
+      /// <summary>
+      /// Basiert der <see cref="BinaryReaderWriter"/> auf einem <see cref="MemoryStream"/> fester Länge?
+      /// </summary>
+      public bool IsFixedLengthMemoryStream {
+         get {
+            return InMemoryData != null;
+         }
+      }
+
+      /// <summary>
+      /// Daten für einen für <see cref="MemoryStream"/> fester Länge
+      /// </summary>
+      public byte[] InMemoryData { get; protected set; }
 
 
       /// <summary>
@@ -70,9 +74,9 @@ namespace GarminCore {
       /// <param name="encoding"></param>
       public BinaryReaderWriter(Stream stream, Encoding encoding = null) {
          XOR = 0;
-         basestream = stream;
+         BaseStream = stream;
          if (encoding != null)
-            stdencoding = encoding;
+            StandardEncoding = encoding;
       }
 
       /// <summary>
@@ -86,13 +90,13 @@ namespace GarminCore {
          XOR = 0;
          if (read) {
             if (write)
-               basestream = File.Open(filename, create ? FileMode.Create : FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+               BaseStream = File.Open(filename, create ? FileMode.Create : FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             else
-               basestream = File.Open(filename, create ? FileMode.Create : FileMode.Open, FileAccess.Read, FileShare.Read);
+               BaseStream = File.Open(filename, create ? FileMode.Create : FileMode.Open, FileAccess.Read, FileShare.Read);
          } else
-            basestream = File.Open(filename, create ? FileMode.Create : FileMode.Open, FileAccess.Write, FileShare.None);
+            BaseStream = File.Open(filename, create ? FileMode.Create : FileMode.Open, FileAccess.Write, FileShare.None);
          if (encoding != null)
-            stdencoding = encoding;
+            StandardEncoding = encoding;
       }
 
       /// <summary>
@@ -101,9 +105,9 @@ namespace GarminCore {
       /// <param name="encoding"></param>
       public BinaryReaderWriter(Encoding encoding = null) {
          XOR = 0;
-         basestream = new MemoryStream();
+         BaseStream = new MemoryStream();
          if (encoding != null)
-            stdencoding = encoding;
+            StandardEncoding = encoding;
       }
 
       /// <summary>
@@ -113,11 +117,30 @@ namespace GarminCore {
       /// <param name="startindex"></param>
       /// <param name="count"></param>
       /// <param name="encoding"></param>
-      public BinaryReaderWriter(byte[] buffer, int startindex, int count, Encoding encoding = null) {
+      public BinaryReaderWriter(byte[] buffer, int startindex, int count, Encoding encoding = null, bool writable = true) {
          XOR = 0;
-         basestream = new MemoryStream(buffer, startindex, count, true);
+         InMemoryData = buffer;
+         BaseStream = new MemoryStream(InMemoryData, startindex, count, writable);
          if (encoding != null)
-            stdencoding = encoding;
+            StandardEncoding = encoding;
+      }
+
+      /// <summary>
+      /// erzeugt ein Objekt, das auf einem MemoryStream für die vollständig eingelesene Datei basiert
+      /// </summary>
+      /// <param name="filename"></param>
+      /// <param name="encoding"></param>
+      public BinaryReaderWriter(string filename, Encoding encoding = null) {
+         XOR = 0;
+         FileStream fs = new FileStream(filename, FileMode.Open, FileAccess.Read);
+         InMemoryData = new byte[fs.Length];
+         fs.Read(InMemoryData, 0, InMemoryData.Length);
+         fs.Close();
+
+         BaseStream = new MemoryStream(InMemoryData, 0, InMemoryData.Length, false);
+
+         if (encoding != null)
+            StandardEncoding = encoding;
       }
 
       ~BinaryReaderWriter() {
@@ -127,30 +150,19 @@ namespace GarminCore {
       /// <summary>
       /// liefert den zu Grunde legenden Basisstream
       /// </summary>
-      public Stream BaseStream {
-         get {
-            return basestream;
-         }
-      }
+      public Stream BaseStream { get; private set; }
 
       /// <summary>
       /// liefert oder setzt das Standard-Encoding
       /// </summary>
-      public Encoding StandardEncoding {
-         get {
-            return stdencoding;
-         }
-         set {
-            stdencoding = value;
-         }
-      }
+      public Encoding StandardEncoding { get; set; } = Encoding.GetEncoding(1252);
 
       /// <summary>
       /// setzt eine neue Stabdard-Codierung
       /// </summary>
       /// <param name="codePage"></param>
       public void SetEncoding(int codePage) {
-         stdencoding = Encoding.GetEncoding(codePage);
+         StandardEncoding = Encoding.GetEncoding(codePage);
       }
 
       /// <summary>
@@ -158,7 +170,7 @@ namespace GarminCore {
       /// </summary>
       /// <param name="codePage"></param>
       public void SetEncoding(string codePage) {
-         stdencoding = Encoding.GetEncoding(codePage);
+         StandardEncoding = Encoding.GetEncoding(codePage);
       }
 
       /// <summary>
@@ -166,10 +178,10 @@ namespace GarminCore {
       /// </summary>
       public long Length {
          get {
-            return basestream.Length;
+            return BaseStream.Length;
          }
          set {
-            basestream.SetLength(value);
+            BaseStream.SetLength(value);
          }
       }
 
@@ -178,10 +190,10 @@ namespace GarminCore {
       /// </summary>
       public long Position {
          get {
-            return basestream.Position;
+            return BaseStream.Position;
          }
          set {
-            basestream.Position = value;
+            BaseStream.Position = value;
          }
       }
 
@@ -190,7 +202,7 @@ namespace GarminCore {
       /// </summary>
       public long LeftBytes {
          get {
-            return basestream.Length - basestream.Position;
+            return BaseStream.Length - BaseStream.Position;
          }
       }
 
@@ -201,34 +213,11 @@ namespace GarminCore {
       /// <param name="where"></param>
       /// <returns></returns>
       public long Seek(long pos, SeekOrigin where = SeekOrigin.Begin) {
-         return basestream.Seek(pos, where);
+         return BaseStream.Seek(pos, where);
       }
 
       public void Flush() {
-         basestream.Flush();
-      }
-
-
-      /// <summary>
-      /// liest einen 3-Byte Wert als int
-      /// </summary>
-      /// <param name="br"></param>
-      /// <returns></returns>
-      public int Read3() {
-         int v = (int)Read3U();
-         return (v & 0x800000) > 0 ?
-                     (v - 0x1000000) :
-                     v;
-      }
-      /// <summary>
-      /// liest einen 3-Byte Wert als uint
-      /// </summary>
-      /// <param name="br"></param>
-      /// <returns></returns>
-      public uint Read3U() {
-         uint v = ReadUInt16();
-         v += (uint)ReadByte() << 16;
-         return v;
+         BaseStream.Flush();
       }
 
       /// <summary>
@@ -249,96 +238,232 @@ namespace GarminCore {
          Write((byte)((v >> 16) & 0xff));
       }
 
+      #region spez. Member-Lesefkt. für den bequemeren Zugriff auf Daten (greifen auf die Kernfkt. zurück)
 
+      /// <summary>
+      /// liefert 1 Byte (unsigned)
+      /// </summary>
+      /// <returns></returns>
       public byte ReadByte() {
-         int b = basestream.ReadByte() ^ XOR;
+         return ReadByte(this);
+      }
+
+      /// <summary>
+      /// erzeugt und füllt den Byte-Puffer
+      /// </summary>
+      /// <param name="count"></param>
+      /// <returns></returns>
+      public byte[] ReadBytes(int count) {
+         return ReadBytes(new byte[count]);
+      }
+
+      /// <summary>
+      /// füllt den Byte-Puffer
+      /// </summary>
+      /// <param name="buff"></param>
+      /// <returns></returns>
+      public byte[] ReadBytes(byte[] buff) {
+         return ReadBytes(this, buff);
+      }
+
+      public int Read1UInt() {
+         return Read1UInt(this);
+      }
+
+      public int Read1Int() {
+         return Read1Int(this);
+      }
+
+      public int Read2UInt() {
+         return Read2UInt(this);
+      }
+
+      public int Read2Int() {
+         return Read2Int(this);
+      }
+
+      public int Read3UInt() {
+         return Read3UInt(this);
+      }
+
+      public int Read3Int() {
+         return Read3Int(this);
+      }
+
+      public int Read4Int() {
+         return Read4Int(this);
+      }
+
+      public uint Read4UInt() {
+         return Read4UInt(this);
+      }
+
+      /// <summary>
+      /// konvertiert nur das Ergebnis von <see cref="Read3UInt"/> in uint
+      /// </summary>
+      /// <returns></returns>
+      public uint Read3AsUInt() {
+         return (uint)Read3UInt(this);
+      }
+
+      /// <summary>
+      /// konvertiert nur das Ergebnis von <see cref="Read2UInt"/> in ushort
+      /// </summary>
+      /// <returns></returns>
+      public ushort Read2AsUShort() {
+         return (ushort)Read2UInt(this);
+      }
+
+      /// <summary>
+      /// konvertiert nur das Ergebnis von <see cref="Read2Int"/> in short
+      /// </summary>
+      /// <returns></returns>
+      public short Read2AsShort() {
+         return (short)Read2Int(this);
+      }
+
+      //public long ReadInt64() {
+      //   basestream.Read(m_buffer, 0, 8);
+      //   if (XOR != 0)
+      //      for (int i = 0; i < 8; i++)
+      //         m_buffer[i] ^= XOR;
+      //   uint lo = (uint)(m_buffer[0] | m_buffer[1] << 8 |
+      //                    m_buffer[2] << 16 | m_buffer[3] << 24);
+      //   uint hi = (uint)(m_buffer[4] | m_buffer[5] << 8 |
+      //                    m_buffer[6] << 16 | m_buffer[7] << 24);
+      //   return (long)((ulong)hi) << 32 | lo;
+      //}
+
+      //public ulong ReadUInt64() {
+      //   basestream.Read(m_buffer, 0, 8);
+      //   if (XOR != 0)
+      //      for (int i = 0; i < 8; i++)
+      //         m_buffer[i] ^= XOR;
+      //   uint lo = (uint)(m_buffer[0] | m_buffer[1] << 8 |
+      //                    m_buffer[2] << 16 | m_buffer[3] << 24);
+      //   uint hi = (uint)(m_buffer[4] | m_buffer[5] << 8 |
+      //                    m_buffer[6] << 16 | m_buffer[7] << 24);
+      //   return ((ulong)hi) << 32 | lo;
+      //}
+
+      #endregion
+
+      #region spez. static-Lesefkt. für den bequemeren Zugriff auf Daten (greifen auf die Kernfkt. zurück)
+
+      /// <summary>
+      /// liefert 1 Byte als unsigned Wert
+      /// </summary>
+      /// <param name="br"></param>
+      /// <returns></returns>
+      static public int Read1UInt(BinaryReaderWriter br) {
+         return ReadByte(br);
+      }
+
+      /// <summary>
+      /// liefert 1 Byte als signed Wert
+      /// </summary>
+      /// <param name="br"></param>
+      /// <returns></returns>
+      static public int Read1Int(BinaryReaderWriter br) {
+         int v = br.ReadByte();
+         if (v >= 0x80) // Bit 7 = 1 -> negativ
+            v -= 0x100;
+         return v;
+      }
+
+      /// <summary>
+      /// liefert 2 Byte als unsigned Wert
+      /// </summary>
+      /// <param name="br"></param>
+      /// <returns></returns>
+      static public int Read2UInt(BinaryReaderWriter br) {
+         return ReadByte(br) + (ReadByte(br) << 8);
+      }
+
+      /// <summary>
+      /// liefert 2 Byte als signed Wert
+      /// </summary>
+      /// <param name="br"></param>
+      /// <returns></returns>
+      static public int Read2Int(BinaryReaderWriter br) {
+         int v = ReadByte(br) + (ReadByte(br) << 8);
+         if (v >= 0x8000)
+            v -= 0x10000;
+         return v;
+      }
+
+      /// <summary>
+      /// liefert 3 Byte als unsigned Wert
+      /// </summary>
+      /// <param name="br"></param>
+      /// <returns></returns>
+      static public int Read3UInt(BinaryReaderWriter br) {
+         return ReadByte(br) + (ReadByte(br) << 8) + (ReadByte(br) << 16);
+      }
+
+      /// <summary>
+      /// liefert 3 Byte als signed Wert
+      /// </summary>
+      /// <param name="br"></param>
+      /// <returns></returns>
+      static public int Read3Int(BinaryReaderWriter br) {
+         int v = ReadByte(br) + (ReadByte(br) << 8) + (ReadByte(br) << 16);
+         if (v >= 0x800000)
+            v -= 0x1000000;
+         return v;
+      }
+
+      /// <summary>
+      /// liefert 4 Byte als unsigned Wert
+      /// </summary>
+      /// <param name="br"></param>
+      /// <returns></returns>
+      static public uint Read4UInt(BinaryReaderWriter br) {
+         return (uint)(ReadByte(br) + ((long)ReadByte(br) << 8) + ((long)ReadByte(br) << 16) + ((long)ReadByte(br) << 24));
+      }
+
+      /// <summary>
+      /// liefert 4 Byte als signed Wert
+      /// </summary>
+      /// <param name="br"></param>
+      /// <returns></returns>
+      static public int Read4Int(BinaryReaderWriter br) {
+         long v = ReadByte(br) + (ReadByte(br) << 8) + (ReadByte(br) << 16) + (ReadByte(br) << 24);
+         if (v >= 0x80000000)
+            v -= 0x100000000;
+         return (int)v;
+      }
+
+      #endregion
+
+      #region static-Kernfkt. zum Lesen von Daten
+
+      /// <summary>
+      /// Basisfkt zum Füllen des Byte-Puffer
+      /// </summary>
+      /// <param name="buff"></param>
+      /// <returns></returns>
+      static public byte[] ReadBytes(BinaryReaderWriter br, byte[] buff) {
+         br.BaseStream.Read(buff, 0, buff.Length);
+         if (br.XOR != 0)
+            for (int i = 0; i < buff.Length; i++)
+               buff[i] ^= br.XOR;
+         return buff;
+      }
+
+      /// <summary>
+      /// Basisfkt. zum Lesen eines Bytes (ev. auch XORt; IOException am Streamende)
+      /// </summary>
+      /// <returns></returns>
+      static public byte ReadByte(BinaryReaderWriter br) {
+         int b = br.BaseStream.ReadByte() ^ br.XOR;
          if (b == -1)
             throw new IOException("End of file");
          return (byte)b;
       }
 
-      public byte[] ReadBytes(int count) {
-         byte[] buff = new byte[count];
-         basestream.Read(buff, 0, count);
-         if (XOR != 0)
-            for (int i = 0; i < count; i++)
-               buff[i] ^= XOR;
-         return buff;
-      }
+      #endregion
 
-      public byte[] ReadBytes(byte[] buff) {
-         basestream.Read(buff, 0, buff.Length);
-         if (XOR != 0)
-            for (int i = 0; i < buff.Length; i++)
-               buff[i] ^= XOR;
-         return buff;
-      }
-
-      /// <summary>
-      /// 1 Byte als Boolean lesen
-      /// </summary>
-      /// <returns></returns>
-      public bool ReadBoolean() {
-         basestream.Read(m_buffer, 0, 1);
-         m_buffer[0] ^= XOR;
-         return (m_buffer[0] != 0);
-      }
-
-      public short ReadInt16() {
-         basestream.Read(m_buffer, 0, 2);
-         if (XOR != 0)
-            for (int i = 0; i < 2; i++)
-               m_buffer[i] ^= XOR;
-         return (short)(m_buffer[0] | m_buffer[1] << 8);
-      }
-
-      public ushort ReadUInt16() {
-         basestream.Read(m_buffer, 0, 2);
-         if (XOR != 0)
-            for (int i = 0; i < 2; i++)
-               m_buffer[i] ^= XOR;
-         return (ushort)(m_buffer[0] | m_buffer[1] << 8);
-      }
-
-      public int ReadInt32() {
-         basestream.Read(m_buffer, 0, 4);
-         if (XOR != 0)
-            for (int i = 0; i < 4; i++)
-               m_buffer[i] ^= XOR;
-         return (int)(m_buffer[0] | m_buffer[1] << 8 | m_buffer[2] << 16 | m_buffer[3] << 24);
-      }
-
-      public uint ReadUInt32() {
-         basestream.Read(m_buffer, 0, 4);
-         if (XOR != 0)
-            for (int i = 0; i < 4; i++)
-               m_buffer[i] ^= XOR;
-         return (uint)(m_buffer[0] | m_buffer[1] << 8 | m_buffer[2] << 16 | m_buffer[3] << 24);
-      }
-
-      public long ReadInt64() {
-         basestream.Read(m_buffer, 0, 8);
-         if (XOR != 0)
-            for (int i = 0; i < 8; i++)
-               m_buffer[i] ^= XOR;
-         uint lo = (uint)(m_buffer[0] | m_buffer[1] << 8 |
-                          m_buffer[2] << 16 | m_buffer[3] << 24);
-         uint hi = (uint)(m_buffer[4] | m_buffer[5] << 8 |
-                          m_buffer[6] << 16 | m_buffer[7] << 24);
-         return (long)((ulong)hi) << 32 | lo;
-      }
-
-      public ulong ReadUInt64() {
-         basestream.Read(m_buffer, 0, 8);
-         if (XOR != 0)
-            for (int i = 0; i < 8; i++)
-               m_buffer[i] ^= XOR;
-         uint lo = (uint)(m_buffer[0] | m_buffer[1] << 8 |
-                          m_buffer[2] << 16 | m_buffer[3] << 24);
-         uint hi = (uint)(m_buffer[4] | m_buffer[5] << 8 |
-                          m_buffer[6] << 16 | m_buffer[7] << 24);
-         return ((ulong)hi) << 32 | lo;
-      }
 
       //public unsafe double ReadFloat() {
       //   basestream.Read(m_buffer, 0, 8);
@@ -361,7 +486,7 @@ namespace GarminCore {
       /// <param name="encoding"></param>
       /// <returns></returns>
       public char ReadChar(Encoding encoding = null) {
-         if (ReadChar(encoding != null ? encoding : stdencoding, ref m_1char_buffer))
+         if (ReadChar(encoding ?? StandardEncoding, ref m_1char_buffer))
             return m_1char_buffer[0];
          throw new EndOfStreamException();
       }
@@ -375,7 +500,7 @@ namespace GarminCore {
       public char[] ReadChars(int count = 0, Encoding encoding = null) {
          if (count > 0) {
             char[] full = new char[count];
-            int chars = ReadCharBytes(encoding != null ? encoding : stdencoding, full, count);
+            int chars = ReadCharBytes(encoding ?? StandardEncoding, full, count);
 
             if (chars == 0)
                return new char[0];
@@ -388,7 +513,7 @@ namespace GarminCore {
                return full;
          } else {
             List<char> lst = new List<char>();
-            while (ReadChar(encoding != null ? encoding : stdencoding, ref m_1char_buffer))
+            while (ReadChar(encoding ?? StandardEncoding, ref m_1char_buffer))
                if (m_1char_buffer[0] == '\0')
                   break;
                else
@@ -408,7 +533,7 @@ namespace GarminCore {
          int chars_read = 0;
          while ((chars_read < count || count <= 0) &&
                 chars_read < buffer.Length) {
-            if (ReadChar(encoding != null ? encoding : stdencoding, ref m_1char_buffer))
+            if (ReadChar(encoding ?? StandardEncoding, ref m_1char_buffer))
                buffer[chars_read] = m_1char_buffer[0];
             else
                break;
@@ -430,7 +555,7 @@ namespace GarminCore {
          while (true) {    // ein einzelnes Zeichen ermitteln
             // Der Puffer muss nur für 1 Zeichen ausreichen. Dafür sollten 8 Byte mehr als genug sein.
             //CheckBuffer(pos + 1);
-            int read_byte = basestream.ReadByte();
+            int read_byte = BaseStream.ReadByte();
             if (read_byte == -1)    /* EOF */
                return false;
             m_buffer[pos++] = (byte)(((byte)read_byte) ^ XOR);
@@ -474,7 +599,7 @@ namespace GarminCore {
                dat.Add(b);
             len--;
          } while (b != 0 && len > 0);
-         return encoder == null ? stdencoding.GetString(dat.ToArray()) : encoder.GetString(dat.ToArray());
+         return encoder == null ? StandardEncoding.GetString(dat.ToArray()) : encoder.GetString(dat.ToArray());
       }
 
       /// <summary>
@@ -497,15 +622,15 @@ namespace GarminCore {
                         break;
 
                      case 2:
-                        lst.Add(ReadUInt16());
+                        lst.Add(Read2AsUShort());
                         break;
 
                      case 3:
-                        lst.Add(Read3U());
+                        lst.Add(Read3AsUInt());
                         break;
 
                      case 4:
-                        lst.Add(ReadUInt32());
+                        lst.Add(Read4UInt());
                         break;
 
                      default:
@@ -581,32 +706,32 @@ namespace GarminCore {
 
 
       public void Write(byte value) {
-         basestream.WriteByte(value);
+         BaseStream.WriteByte(value);
       }
 
       public void Write(byte[] value) {
-         basestream.Write(value, 0, value.Length);
+         BaseStream.Write(value, 0, value.Length);
       }
 
       public void Write(byte[] value, int offset, int length) {
-         basestream.Write(value, offset, length);
+         BaseStream.Write(value, offset, length);
       }
 
       public void Write(bool value) {
          m_buffer[0] = (byte)(value ? 1 : 0);
-         basestream.Write(m_buffer, 0, 1);
+         BaseStream.Write(m_buffer, 0, 1);
       }
 
       public void Write(short value) {
          m_buffer[0] = (byte)value;
          m_buffer[1] = (byte)(value >> 8);
-         basestream.Write(m_buffer, 0, 2);
+         BaseStream.Write(m_buffer, 0, 2);
       }
 
       public void Write(ushort value) {
          m_buffer[0] = (byte)value;
          m_buffer[1] = (byte)(value >> 8);
-         basestream.Write(m_buffer, 0, 2);
+         BaseStream.Write(m_buffer, 0, 2);
       }
 
       public void Write(int value) {
@@ -614,7 +739,7 @@ namespace GarminCore {
          m_buffer[1] = (byte)(value >> 8);
          m_buffer[2] = (byte)(value >> 16);
          m_buffer[3] = (byte)(value >> 24);
-         basestream.Write(m_buffer, 0, 4);
+         BaseStream.Write(m_buffer, 0, 4);
       }
 
       public void Write(uint value) {
@@ -622,7 +747,7 @@ namespace GarminCore {
          m_buffer[1] = (byte)(value >> 8);
          m_buffer[2] = (byte)(value >> 16);
          m_buffer[3] = (byte)(value >> 24);
-         basestream.Write(m_buffer, 0, 4);
+         BaseStream.Write(m_buffer, 0, 4);
       }
 
       public void Write(long value) {
@@ -634,7 +759,7 @@ namespace GarminCore {
          m_buffer[5] = (byte)(value >> 40);
          m_buffer[6] = (byte)(value >> 48);
          m_buffer[7] = (byte)(value >> 56);
-         basestream.Write(m_buffer, 0, 8);
+         BaseStream.Write(m_buffer, 0, 8);
       }
 
       public void Write(ulong value) {
@@ -646,7 +771,7 @@ namespace GarminCore {
          m_buffer[5] = (byte)(value >> 40);
          m_buffer[6] = (byte)(value >> 48);
          m_buffer[7] = (byte)(value >> 56);
-         basestream.Write(m_buffer, 0, 8);
+         BaseStream.Write(m_buffer, 0, 8);
       }
 
       //public unsafe void Write(float value) {
@@ -678,7 +803,7 @@ namespace GarminCore {
       /// <param name="encoding"></param>
       public void Write(char value, Encoding encoding = null) {
          if (encoding == null)
-            encoding = stdencoding;
+            encoding = StandardEncoding;
          m_1char_buffer[0] = value;
          Write(encoding.GetBytes(m_1char_buffer));
       }
@@ -690,7 +815,7 @@ namespace GarminCore {
       /// <param name="encoding"></param>
       public void Write(char[] value, Encoding encoding = null) {
          if (encoding == null)
-            encoding = stdencoding;
+            encoding = StandardEncoding;
          Write(encoding.GetBytes(value));
       }
 
@@ -703,7 +828,7 @@ namespace GarminCore {
       /// <param name="bEnding0"></param>
       public void WriteString(string text, Encoding encoding = null, bool bEnding0 = true) {
          if (encoding == null)
-            encoding = stdencoding;
+            encoding = StandardEncoding;
          Write(encoding.GetBytes(text));
          if (bEnding0)
             Write((byte)0);
@@ -714,7 +839,7 @@ namespace GarminCore {
       /// </summary>
       /// <param name="brw"></param>
       public void CopyTo(BinaryReaderWriter brw) {
-         CopyTo(brw.basestream);
+         CopyTo(brw.BaseStream);
       }
 
       /// <summary>
@@ -722,8 +847,8 @@ namespace GarminCore {
       /// </summary>
       /// <param name="stream"></param>
       public void CopyTo(Stream stream) {
-         basestream.Seek(0, SeekOrigin.Begin);
-         basestream.CopyTo(stream);
+         BaseStream.Seek(0, SeekOrigin.Begin);
+         BaseStream.CopyTo(stream);
       }
 
       /// <summary>
@@ -732,7 +857,7 @@ namespace GarminCore {
       /// <returns></returns>
       public byte[] ToArray() {
          MemoryStream ms = new MemoryStream();
-         basestream.CopyTo(ms);
+         BaseStream.CopyTo(ms);
          return ms.ToArray();
       }
 
@@ -766,12 +891,12 @@ namespace GarminCore {
 
             }
             // jetzt immer alle unmanaged Ressourcen freigeben (z.B. Win32)
-            if (basestream != null &&
-                basestream.CanSeek) {        // sonst schon wahrscheinlich schon geschlossen
-               basestream.Flush();
-               basestream.Close();
-               basestream.Dispose();
-               basestream = null;
+            if (BaseStream != null &&
+                BaseStream.CanSeek) {        // sonst schon wahrscheinlich schon geschlossen
+               BaseStream.Flush();
+               BaseStream.Close();
+               BaseStream.Dispose();
+               BaseStream = null;
             }
             _isdisposed = true;        // Kennung setzen, dass Dispose erfolgt ist
          }

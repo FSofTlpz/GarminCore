@@ -573,11 +573,11 @@ namespace GarminCore.Files {
       public override void ReadHeader(BinaryReaderWriter br) {
          base.ReadCommonHeader(br, Type);
 
-         Flags = br.ReadUInt32();
-         ZoomlevelCount = br.ReadUInt16();
+         Flags = br.Read4UInt();
+         ZoomlevelCount = br.Read2AsUShort();
          br.ReadBytes(Unknown_0x1B);
-         ZoomlevelRecordSize = br.ReadUInt16();
-         PtrZoomlevel = br.ReadUInt32();
+         ZoomlevelRecordSize = br.Read2AsUShort();
+         PtrZoomlevel = br.Read4UInt();
 
          if (Headerlength == 0x29) {
             br.ReadBytes(Unknown_0x25);

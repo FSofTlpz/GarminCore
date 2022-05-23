@@ -78,7 +78,7 @@ namespace GarminCore {
       /// <param name="br"></param>
       public new void Read(BinaryReaderWriter br) {
          base.Read(br);
-         Recordsize = br.ReadUInt16();
+         Recordsize = br.Read2AsUShort();
       }
       /// <summary>
       /// schreibt die Blockdaten

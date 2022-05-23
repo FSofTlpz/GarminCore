@@ -650,6 +650,27 @@ namespace GarminCore {
       /// <param name="bound"></param>
       /// <returns></returns>
       public Bound Intersection(Bound bound) {
+         intersection(bound, true, out Bound result);
+         return result;
+      }
+
+      /// <summary>
+      /// Überlappen sich die 2 Bereiche?
+      /// </summary>
+      /// <param name="bound"></param>
+      /// <returns></returns>
+      public bool IsOverlapped(Bound bound) {
+         return intersection(bound, false, out Bound result);
+      }
+
+      /// <summary>
+      /// Ex. eine Schnittmenge?
+      /// </summary>
+      /// <param name="bound"></param>
+      /// <param name="getresult">wenn true wird, falls möglich, eine Schnittmenge gebildet</param>
+      /// <param name="result">Schnittmenge oder</param>
+      /// <returns></returns>
+      bool intersection(Bound bound, bool getresult, out Bound result) {
          int l1 = Left;
          int r1 = Right;
          if (r1 < l1)
@@ -678,12 +699,14 @@ namespace GarminCore {
             else if (b2 <= b1 && b1 <= t2)
                b = b1;
 
-            if (b > -Coord.MAPUNITS360DEGREE)
-               return new Bound(l, r, b, Math.Min(t1, t2));
+            if (b > -Coord.MAPUNITS360DEGREE) {
+               result = getresult ? new Bound(l, r, b, Math.Min(t1, t2)) : null;
+               return true;
+            }
          }
-         return null;
+         result = null;
+         return false;
       }
-
 
       /// <summary>
       /// bildet die kleinste umschließende Umgrenzung aus der bestehenden Umgrenzung und dem Punkt

@@ -352,11 +352,11 @@ MDR32/33 StreetAddress Words Table
 
          Filesections.ClearSections();
 
-         Codepage = br.ReadUInt16();
+         Codepage = br.Read2AsUShort();
          br.SetEncoding(Codepage);
 
-         SortId1 = br.ReadUInt16();
-         SortId2 = br.ReadUInt16();
+         SortId1 = br.Read2AsUShort();
+         SortId2 = br.Read2AsUShort();
          br.ReadBytes(Unknown_x1B);
          Mdr1 = new DataBlockWithRecordsize(br);
          br.ReadBytes(Unknown_x27);

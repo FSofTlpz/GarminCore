@@ -69,11 +69,11 @@ namespace GarminCore.Files.Typ {
 
       public TableItem(BinaryReaderWriter br, int iItemlength)
          : this() {
-         rawtype = br.ReadUInt16();
+         rawtype = br.Read2AsUShort();
          switch (iItemlength) {
             case 3: Offset = br.ReadByte(); break;
-            case 4: Offset = br.ReadUInt16(); break;
-            case 5: Offset = (int)br.Read3U(); break;
+            case 4: Offset = br.Read2AsUShort(); break;
+            case 5: Offset = (int)br.Read3AsUInt(); break;
          }
       }
 

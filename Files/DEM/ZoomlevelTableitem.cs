@@ -217,23 +217,23 @@ namespace GarminCore.Files.DEM {
          if (recordlen >= 0x3C) {
             SpecType = br.ReadByte();
             No = br.ReadByte();
-            PointsHoriz = br.ReadInt32();
-            PointsVert = br.ReadInt32();
-            LastRowHeight = br.ReadInt32();
-            LastColWidth = br.ReadInt32();
-            Unknown12 = br.ReadInt16();
-            MaxIdxHoriz = br.ReadInt32();
-            MaxIdxVert = br.ReadInt32();
-            Structure = br.ReadInt16();
-            short tmp = br.ReadInt16();   // SubtileTableitemSize: ergibt sich schon aus Structure
-            PtrSubtileTable = br.ReadUInt32();
-            PtrHeightdata = br.ReadUInt32();
-            west = br.ReadInt32();
-            north = br.ReadInt32();
-            pointDistanceVert = br.ReadInt32();
-            pointDistanceHoriz = br.ReadInt32();
-            MinHeight = br.ReadInt16();
-            MaxHeight = br.ReadUInt16();
+            PointsHoriz = br.Read4Int();
+            PointsVert = br.Read4Int();
+            LastRowHeight = br.Read4Int();
+            LastColWidth = br.Read4Int();
+            Unknown12 = br.Read2AsShort();
+            MaxIdxHoriz = br.Read4Int();
+            MaxIdxVert = br.Read4Int();
+            Structure = br.Read2AsShort();
+            short tmp = br.Read2AsShort();   // SubtileTableitemSize: ergibt sich schon aus Structure
+            PtrSubtileTable = br.Read4UInt();
+            PtrHeightdata = br.Read4UInt();
+            west = br.Read4Int();
+            north = br.Read4Int();
+            pointDistanceVert = br.Read4Int();
+            pointDistanceHoriz = br.Read4Int();
+            MinHeight = br.Read2AsShort();
+            MaxHeight = br.Read2AsUShort();
          }
       }
 

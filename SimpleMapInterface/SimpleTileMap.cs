@@ -89,8 +89,7 @@ namespace GarminCore.SimpleMapInterface {
       /// </summary>
       public StdFile_TRE.SymbolicScaleDenominatorAndBits SymbolicScaleDenominatorAndBitsLevel { get; private set; }
 
-
-      List<DetailMap> _SubdivMaps;
+      readonly List<DetailMap> _SubdivMaps;
 
       /// <summary>
       /// Liste der Subdivmaps
@@ -275,11 +274,9 @@ namespace GarminCore.SimpleMapInterface {
       #region Funktionen zum Speichern der Karte als Bitmap (für Tests)
 
       class LonLat2Bitmap : IDisposable {
-
-         double factor_lon;
-         double factor_lat;
-
-         Bitmap bm;
+         readonly double factor_lon;
+         readonly double factor_lat;
+         readonly Bitmap bm;
 
          public Bitmap Picture {
             get {
@@ -508,9 +505,10 @@ namespace GarminCore.SimpleMapInterface {
          int border_bottom = bm.Y(map.DesiredBounds.Bottom);
          int border_top = bm.Y(map.DesiredBounds.Top);
 
-         Pen pen = new Pen(col, 2F);
-         pen.LineJoin = System.Drawing.Drawing2D.LineJoin.Round;
-         pen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+         Pen pen = new Pen(col, 2F) {
+            LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
+            EndCap = System.Drawing.Drawing2D.LineCap.Round
+         };
 
          foreach (DetailMap.Poly line in map.AreaList) {
             if (line.PointCount > 1) {
@@ -630,36 +628,38 @@ namespace GarminCore.SimpleMapInterface {
       }
 
       public void Test_SaveAsBitmap(List<DetailMap> maps, int width, int height, string filename) {
-         List<Color> cols = new List<Color>();
-         cols.Add(Color.Black);
-         cols.Add(Color.Red);
-         cols.Add(Color.Green);
-         cols.Add(Color.Yellow);
-         cols.Add(Color.Blue);
-         cols.Add(Color.Orange);
-         cols.Add(Color.Violet);
-         cols.Add(Color.LightGray);
-         cols.Add(Color.DarkGreen);
-         cols.Add(Color.DarkMagenta);
-         cols.Add(Color.DarkBlue);
-         cols.Add(Color.DarkCyan);
-         cols.Add(Color.DarkGray);
-         cols.Add(Color.DarkRed);
-         cols.Add(Color.DarkOrange);
-         cols.Add(Color.DarkViolet);
-         cols.Add(Color.LightBlue);
-         cols.Add(Color.LightCyan);
-         cols.Add(Color.LightGreen);
-         cols.Add(Color.Magenta);
+         List<Color> cols = new List<Color> {
+            Color.Black,
+            Color.Red,
+            Color.Green,
+            Color.Yellow,
+            Color.Blue,
+            Color.Orange,
+            Color.Violet,
+            Color.LightGray,
+            Color.DarkGreen,
+            Color.DarkMagenta,
+            Color.DarkBlue,
+            Color.DarkCyan,
+            Color.DarkGray,
+            Color.DarkRed,
+            Color.DarkOrange,
+            Color.DarkViolet,
+            Color.LightBlue,
+            Color.LightCyan,
+            Color.LightGreen,
+            Color.Magenta
+         };
          Random r = new Random();
          while (maps != null && cols.Count < maps.Count)
             cols.Add(Color.FromArgb(r.Next(256), r.Next(256), r.Next(256)));
 
          LonLat2Bitmap bm = new LonLat2Bitmap(MapBounds, width, height);
 
-         Pen pen = new Pen(Color.Black, 2F);
-         pen.LineJoin = System.Drawing.Drawing2D.LineJoin.Round;
-         pen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+         Pen pen = new Pen(Color.Black, 2F) {
+            LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
+            EndCap = System.Drawing.Drawing2D.LineCap.Round
+         };
 
          for (int i = 0; i < maps.Count; i++) {
             DetailMap map = maps[i];
@@ -840,13 +840,17 @@ namespace GarminCore.SimpleMapInterface {
       /// <param name="net"></param>
       /// <param name="maxlevel">max. Ebene bis zu der die Daten eingelesen werden (nur sinnvoll, falls die höchsten Auflösungen nicht benötigt werden)</param>
       protected void GetFileData(StdFile_TRE tre, StdFile_LBL lbl, StdFile_RGN rgn, StdFile_NET net, int maxlevel = int.MaxValue) {
-         Clear();
+         MapDescription.Clear();
+         Copyright.Clear();
+         SubdivMaps.Clear();
+         SymbolicScaleDenominatorAndBitsLevel.Clear();
+         MapBounds = null;
 
          for (int i = 0; i < tre.MapDescriptionList.Count; i++)
             MapDescription.Add(tre.MapDescriptionList[i]);
 
          for (int i = 0; i < tre.CopyrightOffsetsList.Count; i++)
-            Copyright.Add(lbl.GetText(tre.CopyrightOffsetsList[i]));
+            Copyright.Add(lbl.GetText(tre.CopyrightOffsetsList[i], true));
 
          CreationDate = tre.CreationDate;
 
@@ -882,106 +886,169 @@ namespace GarminCore.SimpleMapInterface {
 
                //Debug.WriteLine(">>> PolygonList {0}", sd.PolygonList.Count);
                foreach (var item in sd.AreaList) {
-                  if (ReadFilter4Areatypes == null || ReadFilter4Areatypes.Contains((item.Type << 8) | (item.Subtype))) {
-                     DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits);
-                     if (item.LabelOffset != 0)
-                        if (!item.LabelInNET)            // das dürfte immer so sein
-                           p.Label = lbl.GetText(item.LabelOffset);
-                     dm.AreaList.Add(p);
+#if DEBUG
+                  try {
+#endif
+                     if (ReadFilter4Areatypes == null || ReadFilter4Areatypes.Contains((item.Type << 8) | (item.Subtype))) {
+                        DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits);
+                        if (item.LabelOffsetInLBL != 0)
+                           if (!item.LabelInNET)            // das dürfte immer so sein
+                              p.Label = lbl.GetText(item.LabelOffsetInLBL, true);
+                        dm.AreaList.Add(p);
+                     }
+#if DEBUG
+                  } catch (Exception ex) {
+                     Debug.WriteLine("Exception bei AreaList: " + ex.Message);
+                     throw;
                   }
+#endif
                }
 
                //Debug.WriteLine(">>> ExtPolygonList {0}", sd.ExtPolygonList.Count);
                foreach (var item in sd.ExtAreaList) {
-                  if (ReadFilter4Areatypes == null || ReadFilter4Areatypes.Contains((0x10000) | (item.Type << 8) | (item.Subtype))) {
-                     DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits, true);
-                     if (item.HasLabel)
-                        p.Label = lbl.GetText(item.LabelOffset);
-                     dm.AreaList.Add(p);
+#if DEBUG
+                  try {
+#endif
+                     if (ReadFilter4Areatypes == null || ReadFilter4Areatypes.Contains((0x10000) | (item.Type << 8) | (item.Subtype))) {
+                        DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits, true);
+                        if (item.HasLabel)
+                           p.Label = lbl.GetText(item.LabelOffsetInLBL, true);
+                        dm.AreaList.Add(p);
+                     }
+#if DEBUG
+                  } catch (Exception ex) {
+                     Debug.WriteLine("Exception bei ExtAreaList: " + ex.Message);
+                     throw;
                   }
+#endif
                }
 
                // ================ Linien verarbeiten
 
                //Debug.WriteLine(">>> PoylineList {0}", sd.PoylineList.Count);
                foreach (var item in sd.LineList) {
-                  if (ReadFilter4Linetypes == null || ReadFilter4Linetypes.Contains((item.Type << 8) | (item.Subtype))) {
-                     DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits);
-                     if (item.LabelOffset != 0)
-                        if (!item.LabelInNET)
-                           p.Label = lbl.GetText(item.LabelOffset);
-                        else
-                           p.NetData = new DetailMap.RoadDataExt(net.Roaddata[net.Idx4Offset[item.LabelOffset]], lbl);
-                     dm.LineList.Add(p);
+#if DEBUG
+                  try {
+#endif
+                     if (ReadFilter4Linetypes == null || ReadFilter4Linetypes.Contains((item.Type << 8) | (item.Subtype))) {
+                        DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits);
+                        if (item.LabelOffsetInLBL != 0)
+                           if (!item.LabelInNET)
+                              p.Label = lbl.GetText(item.LabelOffsetInLBL, true);
+                           else
+                              p.NetData = new DetailMap.RoadDataExt(net.Roaddata[net.Idx4Offset[item.LabelOffsetInLBL]], lbl, rgn);
+                        dm.LineList.Add(p);
+                     }
+#if DEBUG
+                  } catch (Exception ex) {
+                     Debug.WriteLine("Exception bei LineList: " + ex.Message);
+                     throw;
                   }
+#endif
                }
 
                //Debug.WriteLine(">>> ExtPolylineList {0}", sd.ExtPolylineList.Count);
                foreach (var item in sd.ExtLineList) {
-                  if (ReadFilter4Linetypes == null || ReadFilter4Linetypes.Contains((0x10000) | (item.Type << 8) | (item.Subtype))) {
-                     DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits, false);
-                     if (item.HasLabel)
-                        p.Label = lbl.GetText(item.LabelOffset);
-                     dm.LineList.Add(p);
+#if DEBUG
+                  try {
+#endif
+                     if (ReadFilter4Linetypes == null || ReadFilter4Linetypes.Contains((0x10000) | (item.Type << 8) | (item.Subtype))) {
+                        DetailMap.Poly p = new DetailMap.Poly(item, sdi.Center, coordbits, false);
+                        if (item.HasLabel)
+                           p.Label = lbl.GetText(item.LabelOffsetInLBL, true);
+                        dm.LineList.Add(p);
+                     }
+#if DEBUG
+                  } catch (Exception ex) {
+                     Debug.WriteLine("Exception bei ExtLineList: " + ex.Message);
+                     throw;
                   }
+#endif
                }
 
                // ================ Punkte verarbeiten
 
-               foreach (var item in sd.IdxPointList) {      // vor den "normalen" Punkten einlesen, damit der ev. Index-Verweise stimmen (z.B. für Exits)
-                  if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((item.Type << 8) | (item.Subtype))) {
-                     DetailMap.Point p = new DetailMap.Point(item, sdi.Center, coordbits);
+               foreach (var item in sd.PointList2) {      // vor den "normalen" Punkten einlesen, damit der ev. Index-Verweise stimmen (z.B. für Exits)
+#if DEBUG
+                  try {
+#endif
+                     if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((item.Type << 8) | (item.Subtype))) {
+                        DetailMap.Point p = new DetailMap.Point(item, sdi.Center, coordbits);
 
-                     if (item.LabelOffset != 0)
-                        if (!item.IsPoiOffset)
-                           p.Label = lbl.GetText(item.LabelOffset);
-                        else {
-                           int idx = lbl.POIPropertiesListOffsets[item.LabelOffset];
-                           DetailMap.PoiDataExt pd = new DetailMap.PoiDataExt(lbl.POIPropertiesList[idx], lbl);
-                           p.LblData = pd;
-                           p.Label = p.LblData.Text;
-                        }
-
-                     dm.PointList.Add(p);
-                  }
-               }
-
-               foreach (var item in sd.PointList) {
-                  if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((item.Type << 8) | (item.Subtype))) {
-                     DetailMap.Point p = new DetailMap.Point(item, sdi.Center, coordbits);
-
-                     if (item.LabelOffset != 0)
-                        if (!item.IsPoiOffset)
-                           p.Label = lbl.GetText(item.LabelOffset);
-                        else {
-                           if (lbl.POIPropertiesListOffsets.ContainsKey(item.LabelOffset)) {
-                              int idx = lbl.POIPropertiesListOffsets[item.LabelOffset];
-                              DetailMap.PoiDataExt pd = new DetailMap.PoiDataExt(lbl.POIPropertiesList[idx], lbl);
+                        if (item.LabelOffsetInLBL != 0)
+                           if (!item.IsPoiOffset)
+                              p.Label = lbl.GetText(item.LabelOffsetInLBL, true);
+                           else {
+                              int idx = lbl.PointPropertiesListOffsets[item.LabelOffsetInLBL];
+                              DetailMap.PoiDataExt pd = new DetailMap.PoiDataExt(lbl.PointPropertiesList[idx], lbl);
                               p.LblData = pd;
                               p.Label = p.LblData.Text;
-                           } else
-                              Debug.WriteLine("Fehler bei IsPoiOffset=" + item.LabelOffset.ToString() + ", aber ohne gültige POIPropertiesListOffsets?");
-                        }
+                           }
 
-                     dm.PointList.Add(p);
+                        dm.PointList.Add(p);
+                     }
+#if DEBUG
+                  } catch (Exception ex) {
+                     Debug.WriteLine("Exception bei PointList2: " + ex.Message);
+                     throw;
                   }
+#endif
+               }
+
+               foreach (var item in sd.PointList1) {
+#if DEBUG
+                  try {
+#endif
+                     if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((item.Type << 8) | (item.Subtype))) {
+                        DetailMap.Point p = new DetailMap.Point(item, sdi.Center, coordbits);
+
+                        if (item.LabelOffsetInLBL != 0)
+                           if (!item.IsPoiOffset)
+                              p.Label = lbl.GetText(item.LabelOffsetInLBL, true);
+                           else {
+                              if (lbl.PointPropertiesListOffsets.ContainsKey(item.LabelOffsetInLBL)) {
+                                 int idx = lbl.PointPropertiesListOffsets[item.LabelOffsetInLBL];
+                                 DetailMap.PoiDataExt pd = new DetailMap.PoiDataExt(lbl.PointPropertiesList[idx], lbl);
+                                 p.LblData = pd;
+                                 p.Label = p.LblData.Text;
+                              } else
+                                 Debug.WriteLine("Fehler bei IsPoiOffset=" + item.LabelOffsetInLBL.ToString() + ", aber ohne gültige POIPropertiesListOffsets?");
+                           }
+
+                        dm.PointList.Add(p);
+                     }
+#if DEBUG
+                  } catch (Exception ex) {
+                     Debug.WriteLine("Exception bei PointList1: " + ex.Message);
+                     throw;
+                  }
+#endif
                }
 
                foreach (var item in sd.ExtPointList) {
-                  if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((0x10000) | (item.Type << 8) | (item.Subtype))) {
-                     DetailMap.Point p = new DetailMap.Point(item, sdi.Center, coordbits);
+#if DEBUG
+                  try {
+#endif
+                     if (ReadFilter4Pointtypes == null || ReadFilter4Pointtypes.Contains((0x10000) | (item.Type << 8) | (item.Subtype))) {
+                        DetailMap.Point p = new DetailMap.Point(item, sdi.Center, coordbits);
 
-                     if (item.HasLabel)
-                        p.Label = lbl.GetText(item.LabelOffset);
+                        if (item.HasLabel)
+                           p.Label = lbl.GetText(item.LabelOffsetInLBL, true);
 
-                     if (item.HasExtraBytes)
-                        p.GarminExtraData = item.ExtraBytes;
+                        if (item.HasExtraBytes)
+                           p.GarminExtraData = item.ExtraBytes;
 
-                     dm.PointList.Add(p);
+                        dm.PointList.Add(p);
+                     }
+#if DEBUG
+                  } catch (Exception ex) {
+                     Debug.WriteLine("Exception bei ExtPointList: " + ex.Message);
+                     throw;
                   }
+#endif
                }
-            }
 
+            }
             subdivmaplst.Add(dm);
          }
 
@@ -1141,8 +1208,7 @@ namespace GarminCore.SimpleMapInterface {
          /// zum (sortierten) Sammeln von Texten
          /// </summary>
          class SimpleTextBag {
-
-            SortedSet<string> text;
+            readonly SortedSet<string> text;
             List<string> table;
 
             /// <summary>
@@ -1255,8 +1321,7 @@ namespace GarminCore.SimpleMapInterface {
                }
             }
 
-
-            SortedSet<DataItem> text;
+            readonly SortedSet<DataItem> text;
             List<DataItem> table;
 
             /// <summary>
@@ -1459,8 +1524,7 @@ namespace GarminCore.SimpleMapInterface {
             }
          }
 
-
-         StdFile_LBL lbl;
+         readonly StdFile_LBL lbl;
          SimpleTextBag Country, Zip;
          SimpleTextBagExt Region, City;
          /// <summary>
@@ -1599,8 +1663,8 @@ namespace GarminCore.SimpleMapInterface {
                            if (!string.IsNullOrEmpty(poly.Label))
                               ok = Add(poly.Label);
                            if (poly.NetData != null)
-                              ok = Add(poly.NetData.Country,
-                                       poly.NetData.Region,
+                              ok = Add(null,
+                                       null,
                                        poly.NetData.City,
                                        poly.NetData.Zip,
                                        null,
@@ -1615,8 +1679,8 @@ namespace GarminCore.SimpleMapInterface {
                            if (!string.IsNullOrEmpty(poly.Label))
                               ok = Add(poly.Label);
                            if (poly.NetData != null)
-                              ok = Add(poly.NetData.Country,
-                                       poly.NetData.Region,
+                              ok = Add(null,
+                                       null,
                                        poly.NetData.City,
                                        poly.NetData.Zip,
                                        null,
@@ -1649,7 +1713,7 @@ namespace GarminCore.SimpleMapInterface {
                }
 
                if (!ok)
-                  lbl.TextList = new StdFile_LBL.TextBag(lbl.TextList.Codec, lbl.TextList.OffsetMultiplier * 2);     // OffsetMultiplier vergrößern und neu versuchen
+                  lbl.TextList = new StdFile_LBL.TextBagRW(lbl.TextList.Codec, lbl.TextList.OffsetMultiplier * 2);     // OffsetMultiplier vergrößern und neu versuchen
 
             } while (!ok);
 
@@ -1678,10 +1742,11 @@ namespace GarminCore.SimpleMapInterface {
             string[] regionsorcountries = City.GetTableTxt2();
             bool[] iscountry = City.GetTableFlag();
             for (int i = 0; i < citys.Length; i++) {
-               StdFile_LBL.CityAndRegionOrCountryRecord cr = new StdFile_LBL.CityAndRegionOrCountryRecord();
-               cr.TextOffset = lbl.GetTextOffset(citys[i]);
-               cr.RegionIsCountry = iscountry[i];
-               int idx = 1 + (cr.RegionIsCountry ? Country.Index(regionsorcountries[i]) : Region.Index(regionsorcountries[i]));
+               StdFile_LBL.CityAndRegionOrCountryRecord cr = new StdFile_LBL.CityAndRegionOrCountryRecord {
+                  TextOffsetInLBL = lbl.GetTextOffset(citys[i]),
+                  IsCountry = iscountry[i]
+               };
+               int idx = 1 + (cr.IsCountry ? Country.Index(regionsorcountries[i]) : Region.Index(regionsorcountries[i]));
                cr.RegionOrCountryIndex = (ushort)idx;
                lbl.CityAndRegionOrCountryDataList.Add(cr);
             }
@@ -1711,10 +1776,10 @@ namespace GarminCore.SimpleMapInterface {
             byte maintyp = 0;
             uint idx = 1;            // 1-basierter Index
             foreach (var item in IdxPoints) {
-               lbl.PoiIndexDataList.Add(new StdFile_LBL.PoiIndexRecord(item.PoiListIdx, item.SubType, item.SubdivNo));
+               lbl.PointIndexList4RGN.Add(new StdFile_LBL.PointIndexRecord(item.PoiListIdx, item.SubType, item.SubdivNo));
 
                if (item.MainType != maintyp) {
-                  lbl.PoiTypeIndexDataList.Add(new StdFile_LBL.PoiTypeIndexRecord(item.MainType, idx));
+                  lbl.PointTypeIndexList4RGN.Add(new StdFile_LBL.PointTypeIndexRecord(item.MainType, idx));
                   maintyp = item.MainType;
                }
                idx++;
@@ -1774,8 +1839,7 @@ namespace GarminCore.SimpleMapInterface {
       }
 
       class HelperTre {
-
-         StdFile_TRE tre;
+         readonly StdFile_TRE tre;
 
          public HelperTre(StdFile_TRE tre) {
             this.tre = tre;
@@ -1822,13 +1886,13 @@ namespace GarminCore.SimpleMapInterface {
                         MaxSymbolicScale4Line.Add(type, symbolicscale);
                   }
 
-                  foreach (var obj in sd.PointList) {
+                  foreach (var obj in sd.PointList1) {
                      int type = (obj.Type << 8) | obj.Subtype;
                      if (!MaxSymbolicScale4Point.ContainsKey(type))
                         MaxSymbolicScale4Point.Add(type, symbolicscale);
                   }
 
-                  foreach (var obj in sd.IdxPointList) {
+                  foreach (var obj in sd.PointList2) {
                      int type = (obj.Type << 8) | obj.Subtype;
                      if (!MaxSymbolicScale4Point.ContainsKey(type))
                         MaxSymbolicScale4Point.Add(type, symbolicscale);
@@ -1854,8 +1918,7 @@ namespace GarminCore.SimpleMapInterface {
       }
 
       class HelperRgn {
-
-         StdFile_RGN rgn;
+         readonly StdFile_RGN rgn;
 
          public HelperRgn(StdFile_RGN rgn) {
             this.rgn = rgn;
@@ -1866,7 +1929,7 @@ namespace GarminCore.SimpleMapInterface {
                if (sd.DataLength() > 0xFFFF)
                   throw new Exception("Eine RGN_File.Subdiv ist vermutlich zu groß (max. 64kB ?).");
 
-               if (sd.PointList.Count + sd.IdxPointList.Count > 255)
+               if (sd.PointList1.Count + sd.PointList2.Count > 255)
                   throw new Exception("Eine RGN_File.Subdiv enthält vermutlich zu viele 'normale' Punkte (max. 255 ?).");
             }
          }
@@ -1970,14 +2033,14 @@ namespace GarminCore.SimpleMapInterface {
                               Bound rb = polydat.GetRawBoundDelta();
                               if (rb.Width == 0 || rb.Height == 0) // bestenfalls ein waagerechter oder senkrechter Strich
                                  continue;
-                              polydat.LabelOffset = string.IsNullOrEmpty(poly.Label) ? 0 : lbl.GetTextOffset(poly.Label);
+                              polydat.LabelOffsetInLBL = string.IsNullOrEmpty(poly.Label) ? 0 : lbl.GetTextOffset(poly.Label);
                               sd.AreaList.Add(polydat);
                            } else {
                               StdFile_RGN.ExtRawPolyData polydat = poly.BuildRgnExtPolyData(sdib.Center, coordbits);
                               Bound rb = polydat.GetRawBoundDelta();
                               if (rb.Width == 0 || rb.Height == 0) // bestenfalls ein waagerechter oder senkrechter Strich
                                  continue;
-                              polydat.LabelOffset = string.IsNullOrEmpty(poly.Label) ? 0 : lbl.GetTextOffset(poly.Label);
+                              polydat.LabelOffsetInLBL = string.IsNullOrEmpty(poly.Label) ? 0 : lbl.GetTextOffset(poly.Label);
                               sd.ExtAreaList.Add(polydat);
                            }
                      }
@@ -1992,14 +2055,14 @@ namespace GarminCore.SimpleMapInterface {
                               Bound rb = polydat.GetRawBoundDelta();
                               if (rb.Width == 0 && rb.Height == 0) // nur ein Punkt
                                  continue;
-                              polydat.LabelOffset = string.IsNullOrEmpty(poly.Label) ? 0 : lbl.GetTextOffset(poly.Label);
+                              polydat.LabelOffsetInLBL = string.IsNullOrEmpty(poly.Label) ? 0 : lbl.GetTextOffset(poly.Label);
                               sd.LineList.Add(polydat);
                            } else {
                               StdFile_RGN.ExtRawPolyData polydat = poly.BuildRgnExtPolyData(sdib.Center, coordbits);
                               Bound rb = polydat.GetRawBoundDelta();
                               if (rb.Width == 0 && rb.Height == 0) // nur ein Punkt
                                  continue;
-                              polydat.LabelOffset = string.IsNullOrEmpty(poly.Label) ? 0 : lbl.GetTextOffset(poly.Label);
+                              polydat.LabelOffsetInLBL = string.IsNullOrEmpty(poly.Label) ? 0 : lbl.GetTextOffset(poly.Label);
                               sd.ExtLineList.Add(polydat);
                            }
                      }
@@ -2019,14 +2082,15 @@ namespace GarminCore.SimpleMapInterface {
 
                      foreach (DetailMap.Point point in dm.PointList) {
                         if (!point.IsExtendedType) {
-                           StdFile_RGN.RawPointData pd = new StdFile_RGN.RawPointData();
-                           pd.Type = point.MainType;
-                           pd.Subtype = point.SubType;
-                           pd.RawDeltaLatitude = point.Latitude4Save(sdib.Center.Latitude, coordbits);
-                           pd.RawDeltaLongitude = point.Longitude4Save(sdib.Center.Longitude, coordbits);
+                           StdFile_RGN.RawPointData pd = new StdFile_RGN.RawPointData {
+                              Type = point.MainType,
+                              Subtype = point.SubType,
+                              RawDeltaLatitude = point.Latitude4Save(sdib.Center.Latitude, coordbits),
+                              RawDeltaLongitude = point.Longitude4Save(sdib.Center.Longitude, coordbits)
+                           };
                            bool isexit = false;
                            if (point.LblData != null) {        // es gibt Zusatz-Daten, die in der LBL-Datei gespeichert werden müssen
-                              StdFile_LBL.PoiRecord pr = new StdFile_LBL.PoiRecord();
+                              StdFile_LBL.PointDataRecord pr = new StdFile_LBL.PointDataRecord();
 
                               if (!string.IsNullOrEmpty(point.LblData.City)) {
                                  pr.CityIndex = (ushort)helperlbl.Index1ForCity(point.LblData.City);
@@ -2053,43 +2117,44 @@ namespace GarminCore.SimpleMapInterface {
                                                                             point.LblData.Country,
                                                                             point.LblData.Region,
                                                                             (ushort)(rgn.SubdivList.Count + 1),
-                                                                            (byte)(idxpoints + sd.PointList.Count));
+                                                                            (byte)(idxpoints + sd.PointList1.Count));
                                  isexit = true;
                               }
 
                               pr.TextOffset = lbl.GetTextOffset(point.LblData.Text);
 
-                              lbl.POIPropertiesList.Add(pr);
+                              lbl.PointPropertiesList.Add(pr);
                               pd.IsPoiOffset = true;
-                              pd.LabelOffset = LbLPoiDataOffset;
+                              pd.LabelOffsetInLBL = LbLPoiDataOffset;
 
                               LbLPoiDataOffset += pr.DataLength(lbl.POIGlobalMask);
                            } else {
                               pd.IsPoiOffset = false;
                            }
-                           pd.LabelOffset = string.IsNullOrEmpty(point.Label) ? 0 : lbl.GetTextOffset(point.Label);
+                           pd.LabelOffsetInLBL = string.IsNullOrEmpty(point.Label) ? 0 : lbl.GetTextOffset(point.Label);
 
                            if (!isexit) {
                               bool added = false;
                               if (withpoiidx &&
                                   !string.IsNullOrEmpty(point.Label)) {       // Punkt muss einen Namen haben
                                  if (point.MainType <= 0x11) {                // "City"-Typen direkt in Subdiv (siehe auch MKGMAP MapBuilder.java)
-                                    sd.IdxPointList.Add(pd);
+                                    sd.PointList2.Add(pd);
                                     added = true;
-                                 } else if (sd.PointList.Count < 256)         // sonst ist der Punktindex zu groß
-                                    helperlbl.AddIndexPoi((byte)point.MainType, (byte)point.SubType, (ushort)(rgn.SubdivList.Count + 1), (byte)(idxpoints + sd.PointList.Count));
+                                 } else if (sd.PointList1.Count < 256)         // sonst ist der Punktindex zu groß
+                                    helperlbl.AddIndexPoi((byte)point.MainType, (byte)point.SubType, (ushort)(rgn.SubdivList.Count + 1), (byte)(idxpoints + sd.PointList1.Count));
                               }
                               if (!added)
-                                 sd.PointList.Add(pd);
+                                 sd.PointList1.Add(pd);
                            }
 
                         } else {
-                           StdFile_RGN.ExtRawPointData pd = new StdFile_RGN.ExtRawPointData();
-                           pd.Type = point.MainType;
-                           pd.Subtype = point.SubType;
-                           pd.LabelOffset = string.IsNullOrEmpty(point.Label) ? 0 : lbl.GetTextOffset(point.Label);
-                           pd.RawDeltaLatitude = point.Latitude4Save(sdib.Center.Latitude, coordbits);
-                           pd.RawDeltaLongitude = point.Longitude4Save(sdib.Center.Longitude, coordbits);
+                           StdFile_RGN.ExtRawPointData pd = new StdFile_RGN.ExtRawPointData {
+                              Type = point.MainType,
+                              Subtype = point.SubType,
+                              LabelOffsetInLBL = string.IsNullOrEmpty(point.Label) ? 0 : lbl.GetTextOffset(point.Label),
+                              RawDeltaLatitude = point.Latitude4Save(sdib.Center.Latitude, coordbits),
+                              RawDeltaLongitude = point.Longitude4Save(sdib.Center.Longitude, coordbits)
+                           };
                            sd.ExtPointList.Add(pd);
                         }
                      }
@@ -2124,7 +2189,7 @@ namespace GarminCore.SimpleMapInterface {
             helpertre.SampleOverviewData(rgn.SubdivList);
 
          } catch (Exception ex) {
-            Console.Error.WriteLine("Exception in SimpleMap.SetFileData()");
+            Console.Error.WriteLine("Exception in SimpleMap.SetFileData(): " + ex.Message);
          }
 
       }

@@ -255,11 +255,13 @@ namespace GarminCore.Files {
          /// Offset für den Namen des Highways
          /// </summary>
          public UInt32 TextOffset;
+
          /// <summary>
          /// ergibt mit 3 multipliziert den Offset des 1. Exits im Block der <see cref="HighwayExitDefRecord"/>
          /// <para></para>
          /// </summary>
          public UInt16 FirstExitOffset;
+
          /// <summary>
          /// unknown (setting any of 0x3f stops exits being found)
          /// </summary>
@@ -280,8 +282,8 @@ namespace GarminCore.Files {
          }
 
          public override void Read(BinaryReaderWriter br, object extdata) {
-            TextOffset = br.Read3U();
-            FirstExitOffset = br.ReadUInt16();
+            TextOffset = br.Read3AsUInt();
+            FirstExitOffset = br.Read2AsUShort();
             Unknown1 = br.ReadByte();
          }
 
@@ -302,10 +304,12 @@ namespace GarminCore.Files {
       public class HighwayExitDefRecord : BinaryReaderWriter.DataStruct {
 
          public byte Unknown1;
+
          /// <summary>
          /// Region
          /// </summary>
          public UInt16 RegionIndex;
+
          /// <summary>
          /// Liste der Exit-Punkte
          /// </summary>
@@ -321,19 +325,19 @@ namespace GarminCore.Files {
             /// <summary>
             /// 1-basierter Index des Punktes in der Punkteliste des Subdiv (+ alle Städte, d.h. Typen kleiner 0x0C  ??? WARUM ???)
             /// </summary>
-            public byte PointIndex;
+            public byte PointIndexInRGN;
             /// <summary>
             /// Subdivnummer
             /// </summary>
-            public UInt16 SubdivisionNumber;
+            public UInt16 SubdivisionNumberInRGN;
 
             public ExitPoint(byte PointIndex = 0, UInt16 SubdivisionNumber = 0) {
-               this.PointIndex = PointIndex;
-               this.SubdivisionNumber = SubdivisionNumber;
+               this.PointIndexInRGN = PointIndex;
+               this.SubdivisionNumberInRGN = SubdivisionNumber;
             }
 
             public override string ToString() {
-               return string.Format("Index {0}, SubdivisionNumber {1}", PointIndex, SubdivisionNumber);
+               return string.Format("Index {0}, SubdivisionNumber {1}", PointIndexInRGN, SubdivisionNumberInRGN);
             }
          }
 
@@ -348,14 +352,15 @@ namespace GarminCore.Files {
 
          public override void Read(BinaryReaderWriter br, object extdata) {
             Unknown1 = br.ReadByte();
-            RegionIndex = br.ReadUInt16();
+            RegionIndex = br.Read2AsUShort();
             ExitList = new List<ExitPoint>();
             int len = (int)extdata;
             len -= 3;
             while (len >= 3) {
-               ExitPoint ep = new ExitPoint();
-               ep.PointIndex = br.ReadByte();
-               ep.SubdivisionNumber = br.ReadUInt16();
+               ExitPoint ep = new ExitPoint {
+                  PointIndexInRGN = br.ReadByte(),
+                  SubdivisionNumberInRGN = br.Read2AsUShort()
+               };
                ExitList.Add(ep);
                len -= 3;
             }
@@ -365,8 +370,8 @@ namespace GarminCore.Files {
             bw.Write(Unknown1);
             bw.Write(RegionIndex);
             for (int i = 0; i < ExitList.Count; i++) {
-               bw.Write(ExitList[i].PointIndex);
-               bw.Write(ExitList[i].SubdivisionNumber);
+               bw.Write(ExitList[i].PointIndexInRGN);
+               bw.Write(ExitList[i].SubdivisionNumberInRGN);
             }
          }
 
@@ -376,18 +381,20 @@ namespace GarminCore.Files {
       }
 
       /// <summary>
-      /// Datensatz einer Tabelle, die die Haupttypen der Punkte und den Startindex in der <see cref="PoiIndexRecord"/>-Tabelle enthält
+      /// Datensatz einer Tabelle, die die Haupttypen der Punkte und den Startindex in der <see cref="PointIndexRecord"/>-Tabelle enthält
       /// <para>Der Index gilt nicht für erweiterte Typen und wahrscheinlich auch nicht für "Stadt"-Typen (kleiner 0x12). Die "Stadt"-Typen werden direkt im Subdiv
       /// als Index-Punkte gespeichert.</para>
       /// <para>(von MKGMAP mit make-poi-index erzeugt, aber: "Generate the POI index (not yet useful).)"</para>
       /// </summary>
-      public class PoiTypeIndexRecord : BinaryReaderWriter.DataStruct {
+      public class PointTypeIndexRecord : BinaryReaderWriter.DataStruct {
+
          /// <summary>
          /// POI-Typ
          /// </summary>
-         public byte POIType;
+         public byte PointType;
+
          /// <summary>
-         /// 1-basierter Index für die <see cref="PoiIndexRecord"/>-Tabelle, ab der dieser POI-Typ steht
+         /// 1-basierter Index für die <see cref="PointIndexRecord"/>-Tabelle, ab der dieser <see cref="PointType"/> steht
          /// </summary>
          public UInt32 StartIdx;
 
@@ -396,25 +403,25 @@ namespace GarminCore.Files {
          /// </summary>
          public const uint DataLength = 4;
 
-         public PoiTypeIndexRecord() : this(0, 0) { }
+         public PointTypeIndexRecord() : this(0, 0) { }
 
-         public PoiTypeIndexRecord(byte POIType, UInt32 StartIdx) {
-            this.POIType = POIType;
+         public PointTypeIndexRecord(byte POIType, UInt32 StartIdx) {
+            this.PointType = POIType;
             this.StartIdx = StartIdx;
          }
 
          public override void Read(BinaryReaderWriter br, object extdata) {
-            POIType = br.ReadByte();
-            StartIdx = br.Read3U();
+            PointType = br.ReadByte();
+            StartIdx = br.Read3AsUInt();
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata) {
-            bw.Write(POIType);
+            bw.Write(PointType);
             bw.Write3(StartIdx);
          }
 
          public override string ToString() {
-            return string.Format("POIType 0x{0:x}, Count {1}", POIType, StartIdx);
+            return string.Format("POIType 0x{0:x}, Count {1}", PointType, StartIdx);
          }
       }
 
@@ -422,17 +429,20 @@ namespace GarminCore.Files {
       /// Datensatz einer Tabelle, die die Punkte mit dem Index in den Punktlisten der Subdivs und ihren Subtyp enthält
       /// <para>(von MKGMAP mit make-poi-index erzeugt, aber: "Generate the POI index (not yet useful).)"</para>
       /// </summary>
-      public class PoiIndexRecord : BinaryReaderWriter.DataStruct {
+      public class PointIndexRecord : BinaryReaderWriter.DataStruct {
+
          /// <summary>
          /// 1-basierter Index des Punktes in der Punktliste des Subdiv
          /// </summary>
-         public byte POIIndex;
+         public byte PointIndexInRGN;
+
          /// <summary>
          /// 1-basierter Index des Subdiv
          /// </summary>
-         public UInt16 SubdivisionNumber;
+         public UInt16 SubdivisionNumberInRGN;
+
          /// <summary>
-         /// Subtyp des Punktes (Haupttyp steht im <see cref="PoiTypeIndexRecord"/>)
+         /// Subtyp des Punktes (Haupttyp steht im <see cref="PointTypeIndexRecord"/>)
          /// </summary>
          public byte SubType;
 
@@ -441,35 +451,36 @@ namespace GarminCore.Files {
          /// </summary>
          public const uint DataLength = 4;
 
-         public PoiIndexRecord() : this(0, 0, 0) { }
+         public PointIndexRecord() : this(0, 0, 0) { }
 
-         public PoiIndexRecord(byte POIIndex, byte SubType, UInt16 SubdivisionNumber) {
-            this.POIIndex = POIIndex;
-            this.SubdivisionNumber = SubdivisionNumber;
+         public PointIndexRecord(byte POIIndex, byte SubType, UInt16 SubdivisionNumber) {
+            this.PointIndexInRGN = POIIndex;
+            this.SubdivisionNumberInRGN = SubdivisionNumber;
             this.SubType = SubType;
          }
 
          public override void Read(BinaryReaderWriter br, object extdata) {
-            POIIndex = br.ReadByte();
-            SubdivisionNumber = br.ReadUInt16();
+            PointIndexInRGN = br.ReadByte();
+            SubdivisionNumberInRGN = br.Read2AsUShort();
             SubType = br.ReadByte();
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata) {
-            bw.Write(POIIndex);
-            bw.Write(SubdivisionNumber);
+            bw.Write(PointIndexInRGN);
+            bw.Write(SubdivisionNumberInRGN);
             bw.Write(SubType);
          }
 
          public override string ToString() {
-            return string.Format("POIIndex {0}, SubdivisionNumber {1}, SubType 0x{2:x}", POIIndex, SubdivisionNumber, SubType);
+            return string.Format("POIIndex {0}, SubdivisionNumber {1}, SubType 0x{2:x}", PointIndexInRGN, SubdivisionNumberInRGN, SubType);
          }
       }
 
       /// <summary>
       /// Datensatz für die Tabelle der zusätzlichen POI-Daten
       /// </summary>
-      public class PoiRecord : BinaryReaderWriter.DataStruct {
+      public class PointDataRecord : BinaryReaderWriter.DataStruct {
+
          [Flags]
          public enum SpecPropFlags : byte {
             StreetNumberEncoded = 0x01,
@@ -1016,7 +1027,18 @@ namespace GarminCore.Files {
          }
 
 
-         public PoiRecord() {
+         /// <summary>
+         /// liefert den Text zu <see cref="TextOffset"/>
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+         /// <returns>null, wenn der Offset ungültig ist</returns>
+         public string GetText(StdFile_LBL lbl, bool withctrl) {
+            return lbl.GetText(TextOffset, withctrl);
+         }
+
+
+         public PointDataRecord() {
             _data = 0;
             _internalPropMask = 0;
             _SpecPropFlags = 0;
@@ -1032,7 +1054,7 @@ namespace GarminCore.Files {
             POIFlags POIGlobalFlags = (POIFlags)(0xFF & dat);
             _SpecPropFlags = (SpecPropFlags)(0xFF & (dat >> 8));
 
-            _data = br.Read3U();
+            _data = br.Read3AsUInt();
 
             if (HasLocalProperties)
                _internalPropMask = DecompressedPOIFlags(POIGlobalFlags, (POIFlags)br.ReadByte());
@@ -1042,8 +1064,9 @@ namespace GarminCore.Files {
             if (StreetNumberIsSet) {
                byte v = br.ReadByte();
                if ((v & 0x80) != 0) {        // vom 1. Byte mit gesetztem 7. Bit bis zum nächsten Byte mit gesetztem 7. Bit
-                  List<byte> lst = new List<byte>();
-                  lst.Add(v);
+                  List<byte> lst = new List<byte> {
+                     v
+                  };
                   do {
                      v = br.ReadByte();
                      lst.Add(v);
@@ -1051,30 +1074,31 @@ namespace GarminCore.Files {
                   StreetNumber = DecodeString11(lst);
                } else {
                   br.BaseStream.Seek(-1, SeekOrigin.Current);
-                  StreetNumberOffset = br.Read3U();
+                  StreetNumberOffset = br.Read3AsUInt();
                }
             }
 
             if (StreetIsSet)
-               StreetOffset = br.Read3U();
+               StreetOffset = br.Read3AsUInt();
 
             if (CityIsSet)
                if (UseShortCityIndex)
                   _cityindex = br.ReadByte();
                else
-                  _cityindex = br.ReadUInt16();
+                  _cityindex = br.Read2AsUShort();
 
             if (ZipIsSet)
                if (UseShortZipIndex)
                   _zipindex = br.ReadByte();
                else
-                  _zipindex = br.ReadUInt16();
+                  _zipindex = br.Read2AsUShort();
 
             if (PhoneIsSet) {
                byte v = br.ReadByte();
                if ((v & 0x80) == 0x80) {
-                  List<byte> lst = new List<byte>();
-                  lst.Add(v);
+                  List<byte> lst = new List<byte> {
+                     v
+                  };
                   do {
                      v = br.ReadByte();
                      lst.Add(v);
@@ -1082,12 +1106,12 @@ namespace GarminCore.Files {
                   PhoneNumber = DecodeString11(lst);
                } else {
                   br.BaseStream.Seek(-1, SeekOrigin.Current);
-                  PhoneNumberOffset = br.Read3U();
+                  PhoneNumberOffset = br.Read3AsUInt();
                }
             }
 
             if (ExitIsSet) {
-               _ExitOffset = br.Read3U();
+               _ExitOffset = br.Read3AsUInt();
 
                /*    3 Byte
                 *    Bit 0 .. 21 für Index
@@ -1100,13 +1124,13 @@ namespace GarminCore.Files {
                if (UseShortExitHighwayIndex)
                   _ExitHighwayIndex = br.ReadByte();
                else
-                  _ExitHighwayIndex = br.ReadUInt16();
+                  _ExitHighwayIndex = br.Read2AsUShort();
 
                if (ExitIndexIsSet) {
                   if (UseShortExitIndex)
                      _ExitIndex = br.ReadByte();
                   else
-                     _ExitIndex = br.ReadUInt16();
+                     _ExitIndex = br.Read2AsUShort();
                }
             }
 
@@ -1351,7 +1375,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// Offset für die Namensliste
          /// </summary>
-         public UInt32 TextOffset {
+         public UInt32 TextOffsetInLBL {
             get {
                return _data & 0x3fffff;      // Bit 0..21
             }
@@ -1411,7 +1435,7 @@ namespace GarminCore.Files {
          }
 
          public override void Read(BinaryReaderWriter br, object extdata) {
-            _data = br.ReadUInt32();
+            _data = br.Read4UInt();
             Facilities = br.ReadByte();
          }
 
@@ -1422,7 +1446,7 @@ namespace GarminCore.Files {
 
          public override string ToString() {
             return string.Format("Offset {0}, LastFacilitie {1}, Type 0x{2:x}, Direction 0x{3:x}",
-               TextOffset,
+               TextOffsetInLBL,
                LastFacilitie,
                Type,
                Direction);
@@ -1434,10 +1458,11 @@ namespace GarminCore.Files {
       /// Datensatz in der PLZ-Tabelle
       /// </summary>
       public class ZipRecord : BinaryReaderWriter.DataStruct {
+
          /// <summary>
          /// Offset für die Namensliste
          /// </summary>
-         public UInt32 TextOffset;
+         public UInt32 TextOffsetInLBL;
 
          /// <summary>
          /// Größe des Speicherbereiches in der LBL-Datei
@@ -1448,73 +1473,109 @@ namespace GarminCore.Files {
             : this(0) { }
 
          public ZipRecord(UInt32 offset) {
-            TextOffset = offset;
+            TextOffsetInLBL = offset;
          }
 
          public override void Read(BinaryReaderWriter br, object extdata) {
-            TextOffset = br.Read3U();
+            TextOffsetInLBL = br.Read3AsUInt();
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata) {
-            bw.Write3(TextOffset);
+            bw.Write3(TextOffsetInLBL);
+         }
+
+         /// <summary>
+         /// liefert den Text für die PLZ oder null
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+         /// <returns></returns>
+         public string GetText(StdFile_LBL lbl, bool withctrl) {
+            return lbl.GetText(TextOffsetInLBL, withctrl);
          }
 
          public override string ToString() {
-            return string.Format("Offset {0}", TextOffset);
+            return string.Format("Offset {0}", TextOffsetInLBL);
          }
 
       }
 
       /// <summary>
-      /// Datensatz in der Städte-Tabelle (mit Verweis in die <see cref="CountryRecord"/>- oder <see cref="RegionAndCountryRecord"/>-Tabelle)
+      /// Datensatz in der Städte-Tabelle für eine Stadt und eine Region bzw. ein Land (Verweis in die <see cref="CountryRecord"/>- oder <see cref="RegionAndCountryRecord"/>-Tabelle; 5 Byte)
       /// </summary>
       public class CityAndRegionOrCountryRecord : BinaryReaderWriter.DataStruct {
+
+         // Die Daten verweisen entweder als Offset in den Textbereich der LBL-Datei oder als Subdivisionnummer und Punktindex auf einen Punkt der RGN-Datei.
 
          UInt32 _Data;
 
          /// <summary>
-         /// Offset für die Namensliste; gültig wenn <see cref="IsPOI"/> false ist
+         /// Offset für die Namensliste; nur gültig wenn <see cref="IsPointInRGN"/> false ist
          /// </summary>
-         public UInt32 TextOffset {
+         public UInt32 TextOffsetInLBL {
             get {
-               return IsPOI ? 0 : _Data;
+               return IsPointInRGN ? 0 : _Data;
             }
             set {
                _Data = value & 0xffffff;
-               IsPOI = false;
+               IsPointInRGN = false;
             }
          }
 
          /// <summary>
-         /// gültig wenn <see cref="IsPOI"/> true ist
+         /// nur gültig wenn <see cref="IsPointInRGN"/> true ist (Bit 0..7)
          /// </summary>
-         public byte POIIndex {
+         public byte PointIndexInRGN {
             get {
-               return (byte)(IsPOI ? (_Data >> 16) & 0xff : 0);
+               return (byte)(IsPointInRGN ? _Data & 0xff : 0);
             }
             set {
                _Data = ((UInt32)value << 16) | (_Data & 0xffff);
-               IsPOI = true;
+               IsPointInRGN = true;
             }
          }
 
          /// <summary>
-         /// gültig wenn <see cref="IsPOI"/> true ist
+         /// nur gültig wenn <see cref="IsPointInRGN"/> true ist (Bit 8..23)
          /// </summary>
-         public UInt16 SubdivisionNumber {
+         public UInt16 SubdivisionNumberInRGN {
             get {
-               return (UInt16)(IsPOI ? _Data & 0xffff : 0);
+               return (UInt16)(IsPointInRGN ? (_Data >> 8) & 0xffff : 0);
             }
             set {
                _Data = (_Data & 0xff0000) | (UInt32)value;
-               IsPOI = true;
+               IsPointInRGN = true;
             }
          }
 
          /// <summary>
-         /// Bit 0..13 für den Region/Country-Index, Bit 14 als Flag für Region/Country, Bit 15 als Flag für POI oder Offset
+         /// Bit 0..13 für den Region/Country-Index, Bit 14 als Flag für Region/Country, Bit 15 als Flag für POI oder Text-Offset
          /// </summary>
          UInt16 _Info;
+
+         /// <summary>
+         /// setzt oder liefert ob entweder <see cref="PointIndexInRGN"/> und <see cref="SubdivisionNumberInRGN"/> oder <see cref="TextOffsetInLBL"/> gültig ist
+         /// </summary>
+         public bool IsPointInRGN {
+            get {
+               return Bit.IsSet(_Info, 15);
+            }
+            set {
+               Bit.Set(_Info, 15, value);
+            }
+         }
+
+         /// <summary>
+         /// setzt oder liefert ob <see cref="RegionOrCountryIndex"/> einen Region- oder Country-Index liefert (Bit 14)
+         /// </summary>
+         public bool IsCountry {
+            get {
+               return Bit.IsSet(_Info, 14);
+            }
+            set {
+               Bit.Set(_Info, 14, value);
+            }
+         }
 
          /// <summary>
          /// liefert oder setzt Werte von 0 .. 0x3FFF (Bit 0 .. 13)
@@ -1525,28 +1586,6 @@ namespace GarminCore.Files {
             }
             set {
                _Info = (UInt16)((_Info & 0xc000) & (value & 0x3fff));
-            }
-         }
-         /// <summary>
-         /// setzt oder liefert ob <see cref="RegionOrCountryIndex"/> einen Region- oder Country-Index liefert (Bit 14)
-         /// </summary>
-         public bool RegionIsCountry {
-            get {
-               return Bit.IsSet(_Info, 14);
-            }
-            set {
-               Bit.Set(_Info, 14, value);
-            }
-         }
-         /// <summary>
-         /// setzt oder liefert ob <see cref="POIIndex"/> und <see cref="SubdivisionNumber"/> oder nur <see cref="PoiTextOffset"/> gültig ist
-         /// </summary>
-         public bool IsPOI {
-            get {
-               return Bit.IsSet(_Info, 15);
-            }
-            set {
-               Bit.Set(_Info, 15, value);
             }
          }
 
@@ -1561,8 +1600,8 @@ namespace GarminCore.Files {
          }
 
          public override void Read(BinaryReaderWriter br, object extdata) {
-            _Data = br.Read3U();
-            _Info = br.ReadUInt16();
+            _Data = br.Read3AsUInt();
+            _Info = br.Read2AsUShort();
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata) {
@@ -1570,10 +1609,56 @@ namespace GarminCore.Files {
             bw.Write(_Info);
          }
 
+         /// <summary>
+         /// liefert den Text für die Stadt
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <param name="rgn">nur nötig, wenn <see cref="IsPointInRGN"/> gesetzt ist</param>
+         /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+         /// <returns></returns>
+         public string GetCityText(StdFile_LBL lbl, StdFile_RGN rgn, bool withctrl) {
+            if (IsPointInRGN) {
+               if (rgn != null) {
+                  StdFile_RGN.RawPointData pd = rgn.GetPoint1(SubdivisionNumberInRGN + 1, PointIndexInRGN);       // 'SubdivisionNumberInRGN + 1' ?????
+                  if (!(pd is null))      // wegen Überladung '!=' diese ungewöhnliche Bedingung
+                     return pd.GetText(lbl, withctrl);
+               } else
+                  throw new Exception("GetCityText: IsPointInRGN but rgn is null");
+            } else
+               return lbl.GetText(TextOffsetInLBL, withctrl);
+            return null;
+         }
+
+         /// <summary>
+         /// liefert den Text für die Region
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+         /// <returns></returns>
+         public string GetRegionText(StdFile_LBL lbl, bool withctrl) {
+            return !IsCountry ?
+                        lbl.GetRegionText_FromRegionAndCountryList(RegionOrCountryIndex - 1, withctrl) :
+                        null;
+         }
+
+         /// <summary>
+         /// liefert den Text für das Land
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+         /// <returns></returns>
+         public string GetCountryText(StdFile_LBL lbl, bool withctrl) {
+            if (!IsCountry) // dann Umweg über Region
+               return lbl.GetCountryText_FromRegionAndCountryList(RegionOrCountryIndex - 1, withctrl);
+            else
+               return lbl.GetCountryText_FromCountryList(RegionOrCountryIndex - 1, withctrl); // 1.basierter Index !
+         }
+
+
          public override string ToString() {
-            return IsPOI ?
-               string.Format("RegionOrCountryIndex {2}, RegionIsCountry {3}, POIIndex {0}, SubdivisionNumber {1}", POIIndex, SubdivisionNumber, RegionOrCountryIndex, RegionIsCountry) :
-               string.Format("RegionOrCountryIndex {1}, RegionIsCountry {2}, TextOffset {0}", TextOffset, RegionOrCountryIndex, RegionIsCountry);
+            return IsPointInRGN ?
+               string.Format("RegionOrCountryIndex {2}, RegionIsCountry {3}, POIIndex {0}, SubdivisionNumber {1}", PointIndexInRGN, SubdivisionNumberInRGN, RegionOrCountryIndex, IsCountry) :
+               string.Format("RegionOrCountryIndex {1}, RegionIsCountry {2}, TextOffset {0}", TextOffsetInLBL, RegionOrCountryIndex, IsCountry);
          }
 
       }
@@ -1582,10 +1667,12 @@ namespace GarminCore.Files {
       /// Datensatz in der Regionen-Tabelle (mit Verweis in die <see cref="CountryRecord"/>-Tabelle)
       /// </summary>
       public class RegionAndCountryRecord : BinaryReaderWriter.DataStruct {
+
          /// <summary>
          /// Index in die Landesliste (1-basiert)
          /// </summary>
          public UInt16 CountryIndex;
+
          /// <summary>
          /// Offset für die Namensliste
          /// </summary>
@@ -1605,13 +1692,35 @@ namespace GarminCore.Files {
          }
 
          public override void Read(BinaryReaderWriter br, object extdata) {
-            CountryIndex = br.ReadUInt16();
-            TextOffset = br.Read3U();
+            CountryIndex = br.Read2AsUShort();
+            TextOffset = br.Read3AsUInt();
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata) {
             bw.Write(CountryIndex);
             bw.Write3(TextOffset);
+         }
+
+         /// <summary>
+         /// liefert den Text der Region oder null (Offset 0 liefert i.A. null)
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+         /// <returns></returns>
+         public string GetRegionText(StdFile_LBL lbl, bool withctrl) {
+            if (TextOffset > 0)
+               return lbl.GetText(TextOffset, withctrl);
+            return null;
+         }
+
+         /// <summary>
+         /// liefert den Text des Landes oder null (Offset 0 liefert i.A. null)
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+         /// <returns></returns>
+         public string GetCountryText(StdFile_LBL lbl, bool withctrl) {
+            return lbl.GetCountryText_FromCountryList(CountryIndex - 1, withctrl); // 1.basierter Index !
          }
 
          public override string ToString() {
@@ -1624,10 +1733,11 @@ namespace GarminCore.Files {
       /// Datensatz in der Ländertabelle
       /// </summary>
       public class CountryRecord : BinaryReaderWriter.DataStruct {
+
          /// <summary>
          /// Offset für die Namensliste
          /// </summary>
-         public UInt32 TextOffset;
+         public UInt32 TextOffsetInLBL;
 
          /// <summary>
          /// Größe des Speicherbereiches in der LBL-Datei
@@ -1638,38 +1748,275 @@ namespace GarminCore.Files {
             : this(0) { }
 
          public CountryRecord(UInt32 offset) {
-            TextOffset = offset;
+            TextOffsetInLBL = offset;
          }
 
          public override void Read(BinaryReaderWriter br, object extdata) {
-            TextOffset = br.Read3U();
+            TextOffsetInLBL = br.Read3AsUInt();
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata) {
-            bw.Write3(TextOffset);
+            bw.Write3(TextOffsetInLBL);
+         }
+
+         /// <summary>
+         /// liefert den Text des Landes oder null (Offset 0 liefert i.A. null)
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+         /// <returns></returns>
+         public string GetText(StdFile_LBL lbl, bool withctrl) {
+            if (TextOffsetInLBL > 0)
+               return lbl.GetText(TextOffsetInLBL, withctrl);
+            return null;
          }
 
          public override string ToString() {
-            return string.Format("Offset {0}", TextOffset);
+            return string.Format("Offset {0}", TextOffsetInLBL);
          }
 
       }
 
       #endregion
 
-      /// <summary>
-      /// zum Sammeln aller verwendeten Texte / Labels
-      /// </summary>
-      public class TextBag {
+      public abstract class TextBag {
 
          /// <summary>
          /// intern verwendeter Offset-Faktor (2er-Potenz)
          /// </summary>
-         public int OffsetMultiplier { get; private set; }
+         public int OffsetMultiplier { get; protected set; }
+
          /// <summary>
          /// Größe des benötigten Datenbereiches
          /// </summary>
-         public int Length { get; private set; }
+         public int Length { get; protected set; }
+
+         /// <summary>
+         /// Codec um die Bytelänge des Textes zum Speichern zu ermitteln
+         /// </summary>
+         public LabelCodec Codec { get; protected set; }
+
+         /// <summary>
+         /// Anzahl der Texteinträge
+         /// </summary>
+         public virtual int Count {
+            get {
+               return 0;
+            }
+         }
+
+
+         public TextBag(LabelCodec codec, int offsetMultiplier = 1) {
+            OffsetMultiplier = 1;
+            for (int i = 7; i >= 0; i--)        // höchste 2er-Potenz suchen und übernehmen
+               if (((0x01 << i) & offsetMultiplier) != 0) {
+                  OffsetMultiplier = 0x01 << i;
+                  break;
+               }
+            Codec = codec;
+         }
+
+         public abstract void Clear();
+
+         public abstract int Insert(string text, int realoffset = -1);
+
+         /// <summary>
+         /// liefert alle Offsets
+         /// </summary>
+         /// <returns></returns>
+         public abstract int[] Offsets();
+
+         /// <summary>
+         /// liefert den Text zum Offset oder null
+         /// </summary>
+         /// <param name="offset"></param>
+         /// <returns></returns>
+         public abstract string Text(int offset);
+
+         /// <summary>
+         /// liefert den als Bytefolge encodierten Text
+         /// </summary>
+         /// <param name="offset"></param>
+         /// <returns></returns>
+         public abstract byte[] EncodedText(int offset);
+
+         /// <summary>
+         /// liefert den Offset zum Text oder -1
+         /// </summary>
+         /// <param name="text"></param>
+         /// <returns></returns>
+         public abstract int Offset(string text);
+
+         public override string ToString() {
+            return string.Format("Texte {0}, Multiplikator {1}, Datenlänge {2}, Codec {3}",
+                                    Count,
+                                    OffsetMultiplier,
+                                    Length,
+                                    Codec.ToString());
+         }
+
+      }
+
+      /// <summary>
+      /// zum Sammeln aller verwendeten Texte / Labels (nur aus der LBL gelesen und dann RO; nicht zum Encodieren geeignet)
+      /// </summary>
+      public class TextBagRO : TextBag {
+
+         /// <summary>
+         /// Anzahl der Texteinträge
+         /// </summary>
+         public override int Count {
+            get {
+               return frozendata != null ?
+                           frozendata.Length :
+                           0;
+            }
+         }
+
+         public bool IsFrozen { get; protected set; }
+
+
+         class Data : IComparable<Data> {
+            public int Offset;
+            public string Text;
+
+            public Data(int offset, string text) {
+               Offset = offset;
+               Text = text;
+            }
+
+            public int CompareTo(Data other) {
+               if (other == null)
+                  return 1;
+               return Offset.CompareTo(other.Offset);
+            }
+
+            public override string ToString() {
+               return Offset.ToString() + ": " + Text;
+            }
+         }
+
+         /// <summary>
+         /// temp. Liste zum Einsammeln der Daten
+         /// </summary>
+         List<Data> temptext;
+
+         /// <summary>
+         /// endgültiges sortiertes Datenarray nach dem "Einfrieren"
+         /// </summary>
+         Data[] frozendata;
+
+
+         /// <summary>
+         /// erzeugt eine leere Textsammlung (nur für das einmalige Einlesen der Daten aus einer LBL-Datei)
+         /// </summary>
+         /// <param name="codec"></param>
+         /// <param name="offsetMultiplier">Multiplikator (2er-Potenz, max. 128)</param>
+         public TextBagRO(LabelCodec codec, int offsetMultiplier = 1) :
+            base(codec, offsetMultiplier) {
+            Length = 0;
+            temptext = new List<Data>();
+         }
+
+         /// <summary>
+         /// löscht den gesamten Dateninhalt
+         /// </summary>
+         public override void Clear() {
+            freezeCheck();
+            frozendata = new Data[0];
+            Length = 0;
+         }
+
+
+         /// <summary>
+         /// fügt bei Bedarf den Text ein und liefert immer 0
+         /// </summary>
+         /// <param name="text"></param>
+         /// <param name="realoffset">"echter" Offset (ohne Multiplikator); da sollte man sich sehr sicher sein</param>
+         /// <returns>negativ, wenn die Liste voll ist</returns>
+         public override int Insert(string text, int realoffset) {
+            if (IsFrozen)
+               throw new Exception("TextBagRO ist \"eingefroren\".");
+            temptext.Add(new Data(realoffset, text));
+            return 0;
+         }
+
+         /// <summary>
+         /// liefert alle Offsets
+         /// </summary>
+         /// <returns></returns>
+         public override int[] Offsets() {
+            freezeCheck();
+            int[] ret = new int[Count];
+            for (int i = 0; i < Count; i++)
+               ret[i] = frozendata[i].Offset;
+            return ret;
+         }
+
+         /// <summary>
+         /// liefert den Text zum Offset oder null
+         /// </summary>
+         /// <param name="offset"></param>
+         /// <returns></returns>
+         public override string Text(int offset) {
+            freezeCheck();
+            int idx = Array.BinarySearch(frozendata, new Data(offset * OffsetMultiplier, null));
+            return idx >= 0 ?
+                     frozendata[idx].Text :
+                     null;
+         }
+
+         /// <summary>
+         /// liefert den als Bytefolge encodierten Text
+         /// </summary>
+         /// <param name="offset"></param>
+         /// <returns></returns>
+         public override byte[] EncodedText(int offset) {
+            freezeCheck();
+            string text = Text(offset);
+            return text != null ?
+                     Codec.Encode(text) :
+                     null;
+         }
+
+         /// <summary>
+         /// liefert den Offset zum Text oder -1
+         /// <para>Langsam (lineare Suche).</para>
+         /// </summary>
+         /// <param name="text"></param>
+         /// <returns></returns>
+         public override int Offset(string text) {
+            freezeCheck();
+            foreach (var item in frozendata) {
+               if (item.Text == text)
+                  return item.Offset;
+            }
+            return -1;
+         }
+
+         void freezeCheck() {
+            if (!IsFrozen)
+               throw new Exception("TextBagRO ist noch nicht \"eingefroren\".");
+         }
+
+         /// <summary>
+         /// danach kein <see cref="Insert"/>() mehr möglich
+         /// </summary>
+         public void Freeze() {
+            IsFrozen = true;
+
+            frozendata = new Data[temptext.Count];
+            temptext.CopyTo(frozendata);
+            temptext.Clear();
+            Array.Sort(frozendata); // eigentlich nicht nötig, weil die Texte schon in der richtigen Reihenfolge eingelesen sein sollten
+         }
+
+      }
+
+      /// <summary>
+      /// zum Sammeln aller verwendeten Texte / Labels
+      /// </summary>
+      public class TextBagRW : TextBag {
 
          /// <summary>
          /// nächster (echter) Offset
@@ -1678,41 +2025,31 @@ namespace GarminCore.Files {
          /// <summary>
          /// Liste zum Suchen von Text zum Offset
          /// </summary>
-         SortedDictionary<int, string> textlist;
+         Dictionary<int, string> textlist;
          /// <summary>
          /// Liste zum Suchen vom Offset zum Text
          /// </summary>
-         SortedDictionary<string, int> offsetlist;
-
-         /// <summary>
-         /// Codec um die Bytelänge des Textes zum Speichern zu ermitteln
-         /// </summary>
-         public LabelCodec Codec { get; private set; }
+         Dictionary<string, int> offsetlist;
 
          /// <summary>
          /// Anzahl der Texteinträge
          /// </summary>
-         public int Count {
+         public override int Count {
             get {
                return textlist.Count;
             }
          }
+
 
          /// <summary>
          /// erzeugt eine leere Textsammlung
          /// </summary>
          /// <param name="codec"></param>
          /// <param name="offsetMultiplier">Multiplikator (2er-Potenz, max. 128)</param>
-         public TextBag(LabelCodec codec, int offsetMultiplier = 1) {
-            OffsetMultiplier = 1;
-            for (int i = 7; i >= 0; i--)        // höchste 2er-Potenz suchen und übernehmen
-               if (((0x01 << i) & offsetMultiplier) != 0) {
-                  OffsetMultiplier = 0x01 << i;
-                  break;
-               }
-            this.Codec = codec;
-            textlist = new SortedDictionary<int, string>();
-            offsetlist = new SortedDictionary<string, int>();
+         public TextBagRW(LabelCodec codec, int offsetMultiplier = 1) :
+            base(codec, offsetMultiplier) {
+            textlist = new Dictionary<int, string>();
+            offsetlist = new Dictionary<string, int>();
             nextoffset = 0;
             Length = 0;
          }
@@ -1724,7 +2061,7 @@ namespace GarminCore.Files {
          /// <param name="codec"></param>
          /// <param name="offsetMultiplier"></param>
          /// <param name="LabeltextList"></param>
-         public TextBag(LabelCodec codec, int offsetMultiplier, SortedDictionary<UInt32, string> LabeltextList)
+         public TextBagRW(LabelCodec codec, int offsetMultiplier, Dictionary<UInt32, string> LabeltextList)
             : this(codec, offsetMultiplier) {
             // alle Daten werden ohne Prüfung übernommen
             foreach (var item in LabeltextList) {
@@ -1741,10 +2078,9 @@ namespace GarminCore.Files {
          /// erzeugt eine Kopie
          /// </summary>
          /// <param name="tb"></param>
-         public TextBag(TextBag tb) {
-            OffsetMultiplier = tb.OffsetMultiplier;
+         public TextBagRW(TextBagRW tb) :
+            base(tb.Codec, tb.OffsetMultiplier) {
             nextoffset = tb.nextoffset;
-            Codec = tb.Codec;
             foreach (var item in tb.textlist)
                textlist.Add(item.Key, item.Value);
             foreach (var item in tb.offsetlist)
@@ -1754,25 +2090,25 @@ namespace GarminCore.Files {
          /// <summary>
          /// löscht den gesamten Dateninhalt
          /// </summary>
-         public void Clear() {
+         public override void Clear() {
             textlist.Clear();
             offsetlist.Clear();
             nextoffset = 0;
             Length = 0;
          }
+
          /// <summary>
          /// fügt bei Bedarf den Text ein und liefert den Offset
          /// </summary>
          /// <param name="text"></param>
          /// <param name="realoffset">"echter" Offset (ohne Multiplikator); da sollte man sich sehr sicher sein</param>
          /// <returns>negativ, wenn die Liste voll ist</returns>
-         public int Insert(string text, int realoffset = -1) {
-            int offset;
-            if (offsetlist.TryGetValue(text, out offset))
+         public override int Insert(string text, int realoffset = -1) {
+            if (offsetlist.TryGetValue(text, out int offset))
                return offset / OffsetMultiplier;
 
             int actoffset = realoffset >= 0 ? realoffset : nextoffset;
-            if (!SetNextOffset(text, actoffset))
+            if (!setNextOffset(text, actoffset))
                return -1;
 
             textlist.Add(actoffset, text);
@@ -1781,7 +2117,7 @@ namespace GarminCore.Files {
             return actoffset / OffsetMultiplier;
          }
 
-         bool SetNextOffset(string text, int actoffset) {
+         bool setNextOffset(string text, int actoffset) {
             int len = Codec.Encode(text).Length;         // einschließlich abschließender 0
             int tmp_length = actoffset + len;
             int tmp_nextoffset = tmp_length;
@@ -1800,7 +2136,7 @@ namespace GarminCore.Files {
          /// liefert alle Offsets
          /// </summary>
          /// <returns></returns>
-         public int[] Offsets() {
+         public override int[] Offsets() {
             int[] offsets = new int[textlist.Count];
             textlist.Keys.CopyTo(offsets, 0);
             for (int i = 0; i < offsets.Length; i++)
@@ -1812,35 +2148,24 @@ namespace GarminCore.Files {
          /// </summary>
          /// <param name="offset"></param>
          /// <returns></returns>
-         public string Text(int offset) {
-            string text;
-            return textlist.TryGetValue(offset * OffsetMultiplier, out text) ? text : null;
+         public override string Text(int offset) {
+            return textlist.TryGetValue(offset * OffsetMultiplier, out string text) ? text : null;
          }
          /// <summary>
          /// liefert den als Bytefolge encodierten Text
          /// </summary>
          /// <param name="offset"></param>
          /// <returns></returns>
-         public byte[] EncodedText(int offset) {
-            string text;
-            return textlist.TryGetValue(offset * OffsetMultiplier, out text) ? Codec.Encode(text) : null;
+         public override byte[] EncodedText(int offset) {
+            return textlist.TryGetValue(offset * OffsetMultiplier, out string text) ? Codec.Encode(text) : null;
          }
          /// <summary>
          /// liefert den Offset zum Text oder -1
          /// </summary>
          /// <param name="text"></param>
          /// <returns></returns>
-         public int Offset(string text) {
-            int offset;
-            return offsetlist.TryGetValue(text, out offset) ? offset / OffsetMultiplier : -1;
-         }
-
-         public override string ToString() {
-            return string.Format("Texte {0}, Multiplikator {1}, Datenlänge {2}, Codec {3}",
-                                    textlist.Count,
-                                    OffsetMultiplier,
-                                    Length,
-                                    Codec.ToString());
+         public override int Offset(string text) {
+            return offsetlist.TryGetValue(text, out int offset) ? offset / OffsetMultiplier : -1;
          }
 
       }
@@ -1860,7 +2185,7 @@ namespace GarminCore.Files {
       /// </summary>
       LabelCodec codec;
 
-      #region Lesen und setzten der globalen POI-Flags
+      #region Lesen und setzen der globalen POI-Flags
 
       [Flags]
       public enum POIFlags : byte {
@@ -2005,25 +2330,28 @@ namespace GarminCore.Files {
       /// Liste aller Exit-Facilities
       /// </summary>
       public List<ExitRecord> ExitList;
-      /// <summary>
-      /// Liste aller POI-Daten
-      /// </summary>
-      public List<PoiRecord> POIPropertiesList;
-      /// <summary>
-      /// zum speichern der Offsets der einzelnen <see cref="PoiRecord"/>
-      /// <para>Wenn <see cref="StdFile_RGN.RawPointData.LabelOffset"/> eines Punktes nicht auf einen Text sondern auf Zusatzdaten verweist, 
-      /// wird hierdurch der Index des <see cref="PoiRecord"/> aus <see cref="POIPropertiesList"/> ermittelt.</para>
-      /// </summary>
-      public SortedList<uint, int> POIPropertiesListOffsets;
 
       /// <summary>
-      /// Index-Liste der POI (Verweise auf Punkliste in den Subdiv's)
+      /// Liste aller Pointdaten (<see cref="PointDataRecord"/>) (reine Daten, Geo-Daten in der RGN-Datei!)
       /// </summary>
-      public List<PoiIndexRecord> PoiIndexDataList;
+      public List<PointDataRecord> PointPropertiesList;
       /// <summary>
-      /// Liste der POI-Typen mit ihrem Startindex in <see cref="PoiIndexDataList"/>
+      /// zum speichern der Offsets der einzelnen <see cref="PointDataRecord"/>
+      /// <para>Wenn <see cref="StdFile_RGN.RawPointData.LabelOffsetInLBL"/> eines Punktes nicht auf einen Text sondern auf Zusatzdaten verweist, 
+      /// wird hierdurch der Index des <see cref="PointDataRecord"/> aus <see cref="PointPropertiesList"/> ermittelt.</para>
       /// </summary>
-      public List<PoiTypeIndexRecord> PoiTypeIndexDataList;
+      public SortedList<uint, int> PointPropertiesListOffsets;
+
+      // Ev. zur einfacheren Suche bei Punkten aus den Subdiv's?
+
+      /// <summary>
+      /// Subdiv/Punktindex-Liste (Verweise auf Punkliste in den Subdiv's)
+      /// </summary>
+      public List<PointIndexRecord> PointIndexList4RGN;
+      /// <summary>
+      /// Liste der POI-Typen mit ihrem Startindex in <see cref="PointIndexList4RGN"/>
+      /// </summary>
+      public List<PointTypeIndexRecord> PointTypeIndexList4RGN;
 
       /// <summary>
       /// Text, der die Sortierung beschreibt
@@ -2039,8 +2367,10 @@ namespace GarminCore.Files {
       public DataBlock PostHeaderDataBlock { get; private set; }
 
 
-      public StdFile_LBL()
+      public StdFile_LBL(bool readwrite = false)
          : base("LBL") {
+
+         textBagIsReadOnly = !readwrite;
 
          cleartext = Encoding.GetEncoding(1252);
 
@@ -2088,20 +2418,20 @@ namespace GarminCore.Files {
          dataoffsetMultiplier = (uint)(0x01 << DataOffsetMultiplier);
          poioffsetMultiplier = (uint)(0x01 << POIOffsetMultiplier);
          codec = new LabelCodec(EncodingType, Codepage);
-         TextList = new TextBag(codec, (int)dataoffsetMultiplier);
+         TextList = getNewTextBag();
 
          CountryDataList = new List<CountryRecord>();
          RegionAndCountryDataList = new List<RegionAndCountryRecord>();
          CityAndRegionOrCountryDataList = new List<CityAndRegionOrCountryRecord>();
-         PoiIndexDataList = new List<PoiIndexRecord>();
-         PoiTypeIndexDataList = new List<PoiTypeIndexRecord>();
+         PointIndexList4RGN = new List<PointIndexRecord>();
+         PointTypeIndexList4RGN = new List<PointTypeIndexRecord>();
          ZipDataList = new List<ZipRecord>();
-         POIPropertiesList = new List<PoiRecord>();
+         PointPropertiesList = new List<PointDataRecord>();
          ExitList = new List<ExitRecord>();
          HighwayExitDefList = new List<HighwayExitDefRecord>();
          HighwayWithExitList = new List<HighwayWithExitRecord>();
 
-         POIPropertiesListOffsets = new SortedList<uint, int>();
+         PointPropertiesListOffsets = new SortedList<uint, int>();
 
          SortDescriptorDefBlock = new DataBlock();
          Lbl13Block = new DataBlockWithRecordsize();
@@ -2134,23 +2464,153 @@ namespace GarminCore.Files {
 
       }
 
+      bool textBagIsReadOnly = false;
+
+      TextBag getNewTextBag() {
+         if (textBagIsReadOnly)
+            return new TextBagRO(codec, (int)dataoffsetMultiplier);
+         else
+            return new TextBagRW(codec, (int)dataoffsetMultiplier);
+      }
+
+      #region Funktionen, die Texte liefern
+
       /// <summary>
-      /// liefert den Text zum Offset
+      /// liefert den Text zum Offset oder null (Offset 0 liefert i.A. null)
       /// </summary>
       /// <param name="offset"></param>
-      /// <param name="clear">wenn true, dann Steuerzeichen als '.'</param>
+      /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
       /// <returns>null, wenn der Offset ungültig ist</returns>
-      public string GetText(uint offset, bool clear = false) {
-         if (!clear)
+      public string GetText(uint offset, bool withctrl) { // = true) {
+         if (withctrl)
             return TextList.Text((int)offset);
          else {
-            byte[] bytes = cleartext.GetBytes(TextList.Text((int)offset));
-            for (int i = 0; i < bytes.Length; i++)
-               if (bytes[i] < 0x20)
-                  bytes[i] = 0x2E;
-            return cleartext.GetString(bytes);
+            string txt = TextList.Text((int)offset);
+            if (txt != null) {
+               byte[] bytes = cleartext.GetBytes(txt);
+               for (int i = 0; i < bytes.Length; i++)
+                  if (bytes[i] < 0x20)
+                     bytes[i] = 0x2E;
+               return cleartext.GetString(bytes);
+            }
          }
+         return null;
       }
+
+
+      /// <summary>
+      /// liefert den Text zum Offset aus der <see cref="PointPropertiesList"/> oder null (Offset 0 liefert i.A. null)
+      /// </summary>
+      /// <param name="offset"></param>
+      /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+      /// <returns>null, wenn der Offset ungültig ist</returns>
+      public string GetText_FromPointList(uint offset, bool withctrl) {
+         if (PointPropertiesListOffsets.TryGetValue(offset, out int idx))
+            return GetText_FromPointList(idx, withctrl);
+         return null;
+      }
+
+      /// <summary>
+      /// liefert den Text zum Index aus der <see cref="PointPropertiesList"/> oder null
+      /// </summary>
+      /// <param name="idx"></param>
+      /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+      /// <returns>null, wenn der Index ungültig ist</returns>
+      public string GetText_FromPointList(int idx, bool withctrl) {
+         if (idx < PointPropertiesList.Count)
+            return PointPropertiesList[idx].GetText(this, withctrl);
+         return null;
+      }
+
+
+      /// <summary>
+      /// liefert den Text zum Index aus der <see cref="ZipDataList"/> oder null
+      /// </summary>
+      /// <param name="idx"></param>
+      /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+      /// <returns>null, wenn der Index ungültig ist</returns>
+      public string GetText_FromZipList(int idx, bool withctrl) {
+         if (idx < ZipDataList.Count)
+            return ZipDataList[idx].GetText(this, withctrl);
+         return null;
+      }
+
+
+      /// <summary>
+      /// liefert den Text der Stadt oder null (Offset 0 liefert i.A. null) aus der <see cref="CityAndRegionOrCountryDataList"/>
+      /// </summary>
+      /// <param name="idx"></param>
+      /// <param name="withctrl"></param>
+      /// <returns></returns>
+      public string GetCityText_FromCityAndRegionOrCountryDataList(StdFile_RGN rgn, int idx, bool withctrl) {
+         if (idx < CityAndRegionOrCountryDataList.Count)
+            return CityAndRegionOrCountryDataList[idx].GetCityText(this, rgn, withctrl);
+         return null;
+      }
+
+
+      /// <summary>
+      /// liefert den Text der Region oder null (Offset 0 liefert i.A. null) aus der <see cref="RegionAndCountryDataList"/>
+      /// </summary>
+      /// <param name="idx"></param>
+      /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+      /// <returns></returns>
+      string GetRegionText_FromRegionAndCountryList(int idx, bool withctrl) {
+         if (idx < RegionAndCountryDataList.Count)
+            return RegionAndCountryDataList[idx].GetRegionText(this, withctrl);
+         return null;
+      }
+
+      /// <summary>
+      /// liefert den Text des Landes oder null (Offset 0 liefert i.A. null) aus der <see cref="CityAndRegionOrCountryDataList"/>
+      /// </summary>
+      /// <param name="idx"></param>
+      /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+      /// <returns></returns>
+      string GetRegionText_FromCityAndRegionOrCountryDataList(int idx, bool withctrl) {
+         if (idx < CityAndRegionOrCountryDataList.Count)
+            return CityAndRegionOrCountryDataList[idx].GetRegionText(this, withctrl);
+         return null;
+      }
+
+
+      /// <summary>
+      /// liefert den Text des Landes oder null (Offset 0 liefert i.A. null) aus der <see cref="CountryDataList"/>
+      /// </summary>
+      /// <param name="idx"></param>
+      /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+      /// <returns></returns>
+      string GetCountryText_FromCountryList(int idx, bool withctrl) {
+         if (idx < CountryDataList.Count) // Index 1-basiert!
+            return CountryDataList[idx].GetText(this, withctrl);
+         return null;
+      }
+
+      /// <summary>
+      /// liefert den Text des Landes oder null (Offset 0 liefert i.A. null) aus der <see cref="RegionAndCountryDataList"/>
+      /// </summary>
+      /// <param name="idx"></param>
+      /// <param name="withctrl">wenn false, dann alle Steuerzeichen als '.'</param>
+      /// <returns></returns>
+      string GetCountryText_FromRegionAndCountryList(int idx, bool withctrl) {
+         if (idx < RegionAndCountryDataList.Count)
+            return RegionAndCountryDataList[idx].GetCountryText(this, withctrl);
+         return null;
+      }
+
+      /// <summary>
+      /// liefert den Text des Landes oder null (Offset 0 liefert i.A. null) aus der <see cref="CityAndRegionOrCountryDataList"/>
+      /// </summary>
+      /// <param name="idx"></param>
+      /// <param name="withctrl"></param>
+      /// <returns></returns>
+      string GetCountryText_FromCityAndRegionOrCountryDataList(int idx, bool withctrl) {
+         if (idx < CityAndRegionOrCountryDataList.Count)
+            return CityAndRegionOrCountryDataList[idx].GetCountryText(this, withctrl);
+         return null;
+      }
+
+      #endregion
 
       /// <summary>
       /// liefert den Offset zum Text (und fügt den Text bei Bedarf ein) oder 0, wenn der Textspeicher voll ist
@@ -2194,11 +2654,11 @@ namespace GarminCore.Files {
 
          // --------- Headerlänge > 170 Byte
          if (Headerlength > 0xaa) {
-            ushort tmp = br.ReadUInt16();
+            ushort tmp = br.Read2AsUShort();
             if (tmp > 0)
                Codepage = tmp;
-            ID1 = br.ReadUInt16();
-            ID2 = br.ReadUInt16();
+            ID1 = br.Read2AsUShort();
+            ID2 = br.Read2AsUShort();
             SortDescriptorDefBlock = new DataBlock(br);
             Lbl13Block = new DataBlockWithRecordsize(br);
             br.ReadBytes(Unknown_0xC2);
@@ -2362,9 +2822,9 @@ namespace GarminCore.Files {
          Filesections.AddSection((int)InternalFileSections.CountryBlock, new DataBlockWithRecordsize(CountryBlock, (ushort)CountryRecord.DataLength));
          Filesections.AddSection((int)InternalFileSections.RegionBlock, new DataBlockWithRecordsize(RegionBlock, (ushort)RegionAndCountryRecord.DataLength));
          Filesections.AddSection((int)InternalFileSections.CityBlock, new DataBlockWithRecordsize(CityBlock, (ushort)CityAndRegionOrCountryRecord.DataLength));
-         Filesections.AddSection((int)InternalFileSections.POIIndexBlock, new DataBlockWithRecordsize(POIIndexBlock, (ushort)PoiIndexRecord.DataLength));
+         Filesections.AddSection((int)InternalFileSections.POIIndexBlock, new DataBlockWithRecordsize(POIIndexBlock, (ushort)PointIndexRecord.DataLength));
          Filesections.AddSection((int)InternalFileSections.POIPropertiesBlock, new DataBlock(POIPropertiesBlock));
-         Filesections.AddSection((int)InternalFileSections.POITypeIndexBlock, new DataBlockWithRecordsize(POITypeIndexBlock, (ushort)PoiTypeIndexRecord.DataLength));
+         Filesections.AddSection((int)InternalFileSections.POITypeIndexBlock, new DataBlockWithRecordsize(POITypeIndexBlock, (ushort)PointTypeIndexRecord.DataLength));
          Filesections.AddSection((int)InternalFileSections.ZipBlock, new DataBlockWithRecordsize(ZipBlock, (ushort)ZipRecord.DataLength));
          Filesections.AddSection((int)InternalFileSections.HighwayWithExitBlock, new DataBlockWithRecordsize(HighwayWithExitBlock, (ushort)HighwayWithExitRecord.DataLength));
          Filesections.AddSection((int)InternalFileSections.ExitBlock, new DataBlockWithRecordsize(ExitBlock, (ushort)ExitRecord.DataLength));
@@ -2412,17 +2872,17 @@ namespace GarminCore.Files {
       }
 
       protected override void DecodeSections() {
-         TextList = new TextBag(codec, (int)dataoffsetMultiplier);
+         TextList = getNewTextBag();
          CountryDataList.Clear();
          RegionAndCountryDataList.Clear();
          CityAndRegionOrCountryDataList.Clear();
-         PoiIndexDataList.Clear();
-         PoiTypeIndexDataList.Clear();
+         PointIndexList4RGN.Clear();
+         PointTypeIndexList4RGN.Clear();
          ZipDataList.Clear();
          HighwayWithExitList.Clear();
          HighwayExitDefList.Clear();
          ExitList.Clear();
-         POIPropertiesList.Clear();
+         PointPropertiesList.Clear();
 
          // Datenblöcke "interpretieren"
          int filesectiontype;
@@ -2486,8 +2946,9 @@ namespace GarminCore.Files {
 
          filesectiontype = (int)InternalFileSections.HighwayWithExitBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             Decode_HighwayWithExitBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
             Filesections.RemoveSection(filesectiontype);
          }
@@ -2512,16 +2973,18 @@ namespace GarminCore.Files {
 
          filesectiontype = (int)InternalFileSections.Lbl13Block;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             //Decode_Lbl13Block(Filesections.GetSectionDataReader(filesectiontype), bl);
             //Filesections.RemoveSection(filesectiontype);
          }
 
          filesectiontype = (int)InternalFileSections.TidePredictionBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             //Decode_TidePredictionBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
             //Filesections.RemoveSection(filesectiontype);
          }
@@ -2643,7 +3106,7 @@ namespace GarminCore.Files {
          if (br != null && block != null && block.Length > 0) {
             br.Seek(block.Offset);
 
-            TextList = new TextBag(codec, (int)dataoffsetMultiplier);
+            TextList = getNewTextBag();
             byte[] buff = br.ReadBytes((int)block.Length); // gesamter codierter Textblock
             int start = TextList.OffsetMultiplier; // eine merkwürdige "Verschwendung" der 1. Bytes
             while (start < block.Length) {
@@ -2658,6 +3121,8 @@ namespace GarminCore.Files {
                if (r != 0)
                   start += TextList.OffsetMultiplier - r;
             }
+            if (textBagIsReadOnly)
+               (TextList as TextBagRO).Freeze();
          }
       }
 
@@ -2696,7 +3161,7 @@ namespace GarminCore.Files {
 
       void Decode_POIIndexBlock(BinaryReaderWriter br, DataBlock block) {
          if (br != null && block != null && block.Length > 0) {
-            PoiIndexDataList = br.ReadArray<PoiIndexRecord>(block);
+            PointIndexList4RGN = br.ReadArray<PointIndexRecord>(block);
          }
       }
 
@@ -2704,17 +3169,17 @@ namespace GarminCore.Files {
          if (br != null && block != null && block.Length > 0) {
             object[] data = new object[1];
             data[0] = (UInt16)((UInt16)POIGlobalMask |
-                               ((UInt16)((CityAndRegionOrCountryDataList.Count < 256 ? PoiRecord.SpecPropFlags.ShortCityIndex : 0) |
-                                         (ZipDataList.Count < 256 ? PoiRecord.SpecPropFlags.ShortZipIndex : 0) |
-                                         (HighwayWithExitList.Count < 256 ? PoiRecord.SpecPropFlags.ShortExitHighwayIndex : 0) |
-                                         (ExitList.Count < 256 ? PoiRecord.SpecPropFlags.ShortExitIndex : 0)) << 8));
-            POIPropertiesList = br.ReadArray<PoiRecord>(block, data, POIPropertiesListOffsets);
+                               ((UInt16)((CityAndRegionOrCountryDataList.Count < 256 ? PointDataRecord.SpecPropFlags.ShortCityIndex : 0) |
+                                         (ZipDataList.Count < 256 ? PointDataRecord.SpecPropFlags.ShortZipIndex : 0) |
+                                         (HighwayWithExitList.Count < 256 ? PointDataRecord.SpecPropFlags.ShortExitHighwayIndex : 0) |
+                                         (ExitList.Count < 256 ? PointDataRecord.SpecPropFlags.ShortExitIndex : 0)) << 8));
+            PointPropertiesList = br.ReadArray<PointDataRecord>(block, data, PointPropertiesListOffsets);
          }
       }
 
       void Decode_POITypeIndexBlock(BinaryReaderWriter br, DataBlock block) {
          if (br != null && block != null && block.Length > 0) {
-            PoiTypeIndexDataList = br.ReadArray<PoiTypeIndexRecord>(block);
+            PointTypeIndexList4RGN = br.ReadArray<PointTypeIndexRecord>(block);
          }
       }
 
@@ -2831,22 +3296,22 @@ namespace GarminCore.Files {
 
       void Encode_POIIndexBlock(BinaryReaderWriter bw) {
          if (bw != null) {
-            for (int i = 0; i < PoiIndexDataList.Count; i++)
-               PoiIndexDataList[i].Write(bw, null);
+            for (int i = 0; i < PointIndexList4RGN.Count; i++)
+               PointIndexList4RGN[i].Write(bw, null);
          }
       }
 
       void Encode_POIPropertiesBlock(BinaryReaderWriter bw) {
          if (bw != null) {
-            for (int i = 0; i < POIPropertiesList.Count; i++)
-               POIPropertiesList[i].Write(bw, POIGlobalMask);
+            for (int i = 0; i < PointPropertiesList.Count; i++)
+               PointPropertiesList[i].Write(bw, POIGlobalMask);
          }
       }
 
       void Encode_POITypeIndexBlock(BinaryReaderWriter bw) {
          if (bw != null) {
-            for (int i = 0; i < PoiTypeIndexDataList.Count; i++)
-               PoiTypeIndexDataList[i].Write(bw, null);
+            for (int i = 0; i < PointTypeIndexList4RGN.Count; i++)
+               PointTypeIndexList4RGN[i].Write(bw, null);
          }
       }
 

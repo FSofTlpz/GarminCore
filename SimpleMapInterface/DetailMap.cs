@@ -62,51 +62,38 @@ namespace GarminCore.SimpleMapInterface {
          public int ExitOffset;
          public int ExitIndex;
 
-         public PoiDataExt(StdFile_LBL.PoiRecord data, StdFile_LBL lbl) {
+         public PoiDataExt(StdFile_LBL.PointDataRecord data, StdFile_LBL lbl) {
             Text = Country = Region = City = Zip = Street = StreetNumber = PhoneNumber = ExitHighway = "";
             ExitOffset = ExitIndex = -1;
 
             if (data.TextOffset > 0)
-               Text = lbl.GetText(data.TextOffset);
+               Text = lbl.GetText(data.TextOffset, true);
 
             if (data.ZipIsSet)
-               Zip = lbl.GetText(lbl.ZipDataList[data.ZipIndex - 1].TextOffset);
+               Zip = lbl.GetText_FromZipList(data.ZipIndex - 1, true);
+
 
             if (data.CityIsSet) {
                StdFile_LBL.CityAndRegionOrCountryRecord cr = lbl.CityAndRegionOrCountryDataList[data.CityIndex - 1];
-
-               if (!cr.IsPOI)
-                  City = lbl.GetText(cr.TextOffset);
-               else {
-
-                  if (cr.POIIndex != 0 && cr.SubdivisionNumber != 0)
-                     Debug.WriteLineIf(cr.POIIndex != 0 && cr.SubdivisionNumber != 0,
-                                       string.Format("POIIndex {0}, SubdivisionNumber {1}", cr.POIIndex, cr.SubdivisionNumber));
-
-               }
-
-               if (cr.RegionIsCountry) {
-                  Country = lbl.GetText(lbl.CountryDataList[cr.RegionOrCountryIndex - 1].TextOffset);
-               } else {
-                  Region = lbl.GetText(lbl.RegionAndCountryDataList[cr.RegionOrCountryIndex - 1].TextOffset);
-                  Country = lbl.GetText(lbl.CountryDataList[lbl.RegionAndCountryDataList[cr.RegionOrCountryIndex - 1].CountryIndex - 1].TextOffset);
-               }
+               City = cr.GetCountryText(lbl, true);
+               Country = cr.GetCountryText(lbl, true);
+               Country = cr.GetRegionText(lbl, true);
             }
 
             if (data.StreetIsSet)
-               Street = lbl.GetText(data.StreetOffset);
+               Street = lbl.GetText(data.StreetOffset, true);
 
             if (data.StreetNumberIsSet)
                if (data.StreetNumberIsCoded)
                   StreetNumber = data.StreetNumber;
                else
-                  StreetNumber = lbl.GetText(data.StreetNumberOffset);
+                  StreetNumber = lbl.GetText(data.StreetNumberOffset, true);
 
             if (data.PhoneIsSet)
                if (data.PhoneNumberIsCoded)
                   StreetNumber = data.PhoneNumber;
                else
-                  StreetNumber = lbl.GetText(data.PhoneNumberOffset);
+                  StreetNumber = lbl.GetText(data.PhoneNumberOffset, true);
 
             if (data.ExitIsSet) {
                if (data.ExitIndexIsSet) {
@@ -119,11 +106,11 @@ namespace GarminCore.SimpleMapInterface {
                                     er.Type,
                                     er.Facilities,
                                     er.LastFacilitie,
-                                    lbl.GetText(er.TextOffset));
+                                    lbl.GetText(er.TextOffsetInLBL, false));
 
                } else if (data.ExitHighwayIndex != 0xFFFF) {
                   if (0 < data.ExitHighwayIndex && data.ExitHighwayIndex <= lbl.HighwayWithExitList.Count)
-                     ExitHighway = lbl.GetText(lbl.HighwayWithExitList[data.ExitHighwayIndex - 1].TextOffset);
+                     ExitHighway = lbl.GetText(lbl.HighwayWithExitList[data.ExitHighwayIndex - 1].TextOffset, true);
 
                   else
                      Debug.WriteLine("ExitHighwayIndex {0}, ExitOffset {1} (LBL_File.ExitList.Count {2}, LBL_File.HighwayList.Count {3})",
@@ -240,52 +227,48 @@ namespace GarminCore.SimpleMapInterface {
       /// </summary>
       public class RoadDataExt {
 
-         public string Country;
-         public string Region;
          public string City;
          public string Zip;
          public List<string> Street;
          public uint RoadLength;
 
-         public RoadDataExt(StdFile_NET.RoadData rd, StdFile_LBL lbl) {
-            Country = Region = City = Zip = "";
+         public RoadDataExt(StdFile_NET.RoadData rd, StdFile_LBL lbl, StdFile_RGN rgn) {
+            City = Zip = "";
             Street = new List<string>();
 
-            if (rd.ZipIndex > 0)
-               Zip = lbl.GetText(lbl.ZipDataList[rd.ZipIndex - 1].TextOffset);
+            for (int side = 0; side < rd.ZipIndex4Node.Count; side++) {
+               if (rd.ZipIndex4Node[side].Count > 0) {
+                  if (Zip.Length > 0)
+                     Zip += " / ";
 
-            if (rd.CityIndex > 0) {
-               StdFile_LBL.CityAndRegionOrCountryRecord cr = lbl.CityAndRegionOrCountryDataList[rd.CityIndex - 1];
-
-               if (!cr.IsPOI)
-                  City = lbl.GetText(cr.TextOffset);
-               else {
-
-                  if (cr.POIIndex != 0 && cr.SubdivisionNumber != 0)
-                     Debug.WriteLine("POIIndex {0}, SubdivisionNumber {1}",
-                                    cr.POIIndex,
-                                    cr.SubdivisionNumber);
-
-               }
-
-               if (cr.RegionIsCountry) {
-                  Country = lbl.GetText(lbl.CountryDataList[cr.RegionOrCountryIndex - 1].TextOffset);
-               } else {
-                  Region = lbl.GetText(lbl.RegionAndCountryDataList[cr.RegionOrCountryIndex - 1].TextOffset);
-                  Country = lbl.GetText(lbl.CountryDataList[lbl.RegionAndCountryDataList[cr.RegionOrCountryIndex - 1].CountryIndex - 1].TextOffset);
+                  Zip += rd.GetZipText(lbl,
+                                side == 0 ?
+                                      StdFile_NET.RoadData.Side.Left :
+                                      StdFile_NET.RoadData.Side.Right,
+                                false);
                }
             }
 
+            for (int side = 0; side < rd.CityIndex4Node.Count; side++) {
+               if (rd.CityIndex4Node[side].Count > 0) {
+                  // aus der NET-Datei
+                  City = rd.GetCityText(lbl,
+                                        rgn,
+                                        side == 0 ?
+                                             StdFile_NET.RoadData.Side.Left :
+                                             StdFile_NET.RoadData.Side.Right,
+                                        false);
+               }
+            }
+
+
             for (int i = 0; i < rd.LabelInfo.Count; i++)
-               Street.Add(lbl.GetText(rd.LabelInfo[i]));
+               Street.Add(lbl.GetText(rd.LabelInfo[i], true));
 
             RoadLength = rd.RoadLength * 2;
-
          }
 
          public RoadDataExt(RoadDataExt rd) {
-            Country = rd.Country;
-            Region = rd.Region;
             City = rd.City;
             Zip = rd.Zip;
             Street = new List<string>();
@@ -296,18 +279,6 @@ namespace GarminCore.SimpleMapInterface {
 
          public override string ToString() {
             StringBuilder sb = new StringBuilder();
-
-            if (Country.Length > 0) {
-               if (sb.Length > 0)
-                  sb.Append(", ");
-               sb.Append(string.Format("Country [{0}]", Country));
-            }
-
-            if (Region.Length > 0) {
-               if (sb.Length > 0)
-                  sb.Append(", ");
-               sb.Append(string.Format("Region [{0}]", Region));
-            }
 
             if (City.Length > 0) {
                if (sb.Length > 0)
@@ -661,7 +632,7 @@ namespace GarminCore.SimpleMapInterface {
             this((poly.Type << 8) | poly.Subtype, poly.DirectionIndicator, poly.IsPolygon) {
             List<MapUnitPoint> pt = poly.GetMapUnitPoints(coordbits, subdiv_center);
             Debug.WriteLineIf(poly.IsPolygon ? pt.Count < 3 : pt.Count < 2,
-                              string.Format("error: polygon/polyline {0} with only {1} points", poly, pt.Count));
+                              string.Format("error: polygon/polyline [{0}] with only {1} points", poly, pt.Count));
             for (int j = 0; j < pt.Count; j++)
                AddPoint(pt[j].LongitudeDegree,
                         pt[j].LatitudeDegree,
@@ -679,8 +650,7 @@ namespace GarminCore.SimpleMapInterface {
          public Poly(StdFile_RGN.ExtRawPolyData poly, MapUnitPoint subdiv_center, int coordbits, bool isarea) :
             this(((0x100 | poly.Type) << 8) | poly.Subtype, false, isarea) {
             List<MapUnitPoint> pt = poly.GetMapUnitPoints(coordbits, subdiv_center);
-            Debug.WriteLineIf(pt.Count < 3, string.Format("Fehler: Polygon {0} hat nur {1} Punkte", poly, pt.Count));
-            Debug.WriteLineIf(pt.Count < 3, string.Format("Fehler: Polygon {0} hat nur {1} Punkte", poly, pt.Count));
+            Debug.WriteLineIf(pt.Count < 3, string.Format("Fehler: Polygon [{0}] hat nur {1} Punkte", poly, pt.Count));
             for (int j = 0; j < pt.Count; j++)
                AddPoint(pt[j].LongitudeDegree,
                         pt[j].LatitudeDegree,
@@ -854,11 +824,12 @@ namespace GarminCore.SimpleMapInterface {
             if (IsExtendedType)
                throw new Exception("Funktion ist nicht für erweiterte Objekte verwendbar.");
 
-            StdFile_RGN.RawPolyData polydat = new StdFile_RGN.RawPolyData();
-            polydat.IsPolygon = isarea;
-            polydat.DirectionIndicator = DirectionIndicator;
-            polydat.LabelInNET = false;
-            polydat.Type = MainType;
+            StdFile_RGN.RawPolyData polydat = new StdFile_RGN.RawPolyData {
+               IsPolygon = isarea,
+               DirectionIndicator = DirectionIndicator,
+               LabelInNET = false,
+               Type = MainType
+            };
 
             List<MapUnitPoint> pt = new List<MapUnitPoint>();
             for (int i = 0; i < PointCount; i++) {
@@ -885,9 +856,10 @@ namespace GarminCore.SimpleMapInterface {
             if (!IsExtendedType)
                throw new Exception("Funktion ist nur für erweiterte Objekte verwendbar.");
 
-            StdFile_RGN.ExtRawPolyData polydat = new StdFile_RGN.ExtRawPolyData();
-            polydat.Type = MainType;
-            polydat.Subtype = SubType;
+            StdFile_RGN.ExtRawPolyData polydat = new StdFile_RGN.ExtRawPolyData {
+               Type = MainType,
+               Subtype = SubType
+            };
 
             List<MapUnitPoint> pt = new List<MapUnitPoint>();
             for (int i = 0; i < PointCount; i++) {
@@ -1073,7 +1045,7 @@ namespace GarminCore.SimpleMapInterface {
       /// <param name="linetypes">wenn die Typ-Liste ungleich null ist, werden nur die aufgelisteten Typen übernommen, sonst alle</param>
       /// <returns></returns>
       public DetailMap Copy(Bound bounds = null, bool fullenclosed = true, SortedSet<int> pointtypes = null, SortedSet<int> linetypes = null, SortedSet<int> areatypes = null) {
-         DetailMap copy = new DetailMap(ParentMap, bounds == null ? DesiredBounds : bounds);
+         DetailMap copy = new DetailMap(ParentMap, bounds ?? DesiredBounds);
 
          for (int i = 0; i < ChildMaps.Count; i++)
             copy.ChildMaps.Add(ChildMaps[i]);

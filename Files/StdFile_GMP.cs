@@ -77,17 +77,17 @@ namespace GarminCore.Files {
       /// <summary>
       /// Headerlänge der Sub-Dateien
       /// </summary>
-      uint[] SubHeaderLength;
+      readonly uint[] SubHeaderLength;
 
       /// <summary>
       /// Abstand von einem Sub-Datei-Headeranfang zum nächsten (0, wenn kein Header mehr folgt)
       /// </summary>
-      uint[] SubHeaderDistance;
+      readonly uint[] SubHeaderDistance;
 
       /// <summary>
       /// Offsets der Gap's
       /// </summary>
-      uint[] SubGapOffset;
+      readonly uint[] SubGapOffset;
 
 
       /// <summary>
@@ -147,7 +147,7 @@ namespace GarminCore.Files {
 
          // die Header- also Sub-Dateianfänge einlesen
          for (int i = 0; i < SubHeaderOffsets.Length; i++)
-            SubHeaderOffsets[i] = br.ReadUInt32();
+            SubHeaderOffsets[i] = br.Read4UInt();
 
          if (Headerlength > 0x35)
             Unknown_0x35 = br.ReadBytes(Headerlength - 0x35);
@@ -156,7 +156,7 @@ namespace GarminCore.Files {
          for (int i = 0; i < SubHeaderOffsets.Length; i++)
             if (SubHeaderOffsets[i] != 0) {
                br.Seek(SubHeaderOffsets[i]);
-               SubHeaderLength[i] = br.ReadUInt16();
+               SubHeaderLength[i] = br.Read2AsUShort();
             } else
                SubHeaderLength[i] = 0;
 
@@ -403,43 +403,6 @@ namespace GarminCore.Files {
          }
          return "";
       }
-
-      ~StdFile_GMP() {
-         Dispose(false);
-      }
-
-      #region Implementierung der IDisposable-Schnittstelle
-
-      /// <summary>
-      /// true, wenn schon ein Dispose() erfolgte
-      /// </summary>
-      private bool _isdisposed = false;
-
-      /// <summary>
-      /// kann expliziet für das Objekt aufgerufen werden um interne Ressourcen frei zu geben
-      /// </summary>
-      public void Dispose() {
-         Dispose(true);
-         GC.SuppressFinalize(this);
-      }
-
-      /// <summary>
-      /// überschreibt die Standard-Methode
-      /// <para></para>
-      /// </summary>
-      /// <param name="notfromfinalizer">falls, wenn intern vom Finalizer aufgerufen</param>
-      protected virtual void Dispose(bool notfromfinalizer) {
-         if (!this._isdisposed) {            // bisher noch kein Dispose erfolgt
-            if (notfromfinalizer) {          // nur dann alle managed Ressourcen freigeben
-
-            }
-            // jetzt immer alle unmanaged Ressourcen freigeben (z.B. Win32)
-
-            _isdisposed = true;        // Kennung setzen, dass Dispose erfolgt ist
-         }
-      }
-
-      #endregion
 
    }
 }

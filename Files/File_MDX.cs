@@ -76,10 +76,10 @@ namespace GarminCore.Files {
          }
 
          public void Read(BinaryReaderWriter br) {
-            MapID = br.ReadUInt32();
-            ProductID = br.ReadUInt16();
-            FamilyID = br.ReadUInt16();
-            MapNumber = br.ReadUInt32();
+            MapID = br.Read4UInt();
+            ProductID = br.Read2AsUShort();
+            FamilyID = br.Read2AsUShort();
+            MapNumber = br.Read4UInt();
          }
 
          public void Write(BinaryReaderWriter wr) {
@@ -137,10 +137,10 @@ namespace GarminCore.Files {
              id[5] != 0)
             throw new Exception("Keine MDX-Datei.");
 
-         Unknown1 = br.ReadUInt16();
-         Unknown2 = br.ReadUInt16();
+         Unknown1 = br.Read2AsUShort();
+         Unknown2 = br.Read2AsUShort();
 
-         Count = br.ReadUInt32();
+         Count = br.Read4UInt();
          Maps.Clear();
          for (int i = 0; i < Count; i++) {
             MapEntry entry = new MapEntry();

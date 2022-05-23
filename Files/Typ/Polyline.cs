@@ -161,7 +161,7 @@ namespace GarminCore.Files.Typ {
             return BitIsSet(Options2, 0);
          }
          protected set {
-            Options = SetBit(Options2, 0, value);
+            Options2 = SetBit(Options2, 0, value);
          }
       }
       
@@ -173,7 +173,7 @@ namespace GarminCore.Files.Typ {
             return BitIsSet(Options2, 1);
          }
          set {
-            Options = SetBit(Options2, 1, value);
+            Options2 = SetBit(Options2, 1, value);
             SetExtendedOptions();
             if (value && !WithExtendedOptions)
                WithExtendedOptions = true;
@@ -188,7 +188,7 @@ namespace GarminCore.Files.Typ {
             return BitIsSet(Options2, 2);
          }
          protected set {
-            Options = SetBit(Options2, 2, value);
+            Options2 = SetBit(Options2, 2, value);
          }
       }
 

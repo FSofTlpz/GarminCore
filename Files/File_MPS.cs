@@ -93,31 +93,31 @@ namespace GarminCore.Files {
 
          public void Read(BinaryReaderWriter br) {
             Typ = (char)br.ReadByte();
-            UInt16 len = br.ReadUInt16();       // Anzahl der noch folgenden Bytes
+            UInt16 len = br.Read2AsUShort();       // Anzahl der noch folgenden Bytes
             long end = br.BaseStream.Position + len;
 
             switch (Typ) {
                case 'L': // MapBlock
-                  ProductID = br.ReadUInt16();
-                  FamilyID = br.ReadUInt16();
-                  MapNumber = br.ReadUInt32();
+                  ProductID = br.Read2AsUShort();
+                  FamilyID = br.Read2AsUShort();
+                  MapNumber = br.Read4UInt();
                   while (br.BaseStream.Position < end - 9)     // seriesName, mapDescription, areaName
                      Name.Add(br.ReadString());
-                  Unknown0 = br.ReadUInt32();
-                  Unknown1 = br.ReadUInt32();
+                  Unknown0 = br.Read4UInt();
+                  Unknown1 = br.Read4UInt();
                   break;
 
                case 'P': // ProductBlock
-                  ProductID = br.ReadUInt16();
-                  FamilyID = br.ReadUInt16();
-                  Unknown2 = br.ReadUInt16();
-                  Unknown3 = br.ReadUInt16();
-                  Unknown4 = br.ReadUInt16();
+                  ProductID = br.Read2AsUShort();
+                  FamilyID = br.Read2AsUShort();
+                  Unknown2 = br.Read2AsUShort();
+                  Unknown3 = br.Read2AsUShort();
+                  Unknown4 = br.Read2AsUShort();
                   break;
 
                case 'F': // vereinfachter MapBlock ?
-                  ProductID = br.ReadUInt16();
-                  FamilyID = br.ReadUInt16();
+                  ProductID = br.Read2AsUShort();
+                  FamilyID = br.Read2AsUShort();
                   while (br.BaseStream.Position < end)         // description (nur 1x?)
                      Name.Add(br.ReadString());
                   break;

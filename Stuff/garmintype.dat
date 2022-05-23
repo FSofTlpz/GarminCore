@@ -1,0 +1,393 @@
+P0x0100    Megapole (über 10 Mio. Einwohner)
+P0x0200    Megapole (5 bis 10 Mio. Einwohner)
+P0x0300    Metropole (2 bis 5 Mio. Einwohner)
+P0x0400    Metropole (1 bis 2 Mio. Einwohner)
+P0x0500    Großstadt (0.5 bis 1 Mio. Einwohner)
+P0x0600    Großstadt (200000  bis 500000 Einwohner)
+P0x0700    Großstadt (100000 bis 200000Einwohner)
+P0x0800    Stadt (50000 bis 100000 Einwohner)
+P0x0900    Stadt (20000 bis 50000 Einwohner)
+P0x0a00    Kleinstadt (10000 bis 200000 Einwohner)
+P0x0b00    Kleinstadt (5000 bis 10000 Einwohner)
+P0x0c00    Ort (2000 bis 5000 Einwohner)
+P0x0d00    Ort (1000 bis 2000 Einwohner)
+P0x0e00    Dorf (500 bis 1000 Einwohner)
+P0x0f00    Dorf (200 bis 500 Einwohner)
+P0x1000    Dorf (100 bis 200 Einwohner)
+P0x1100    Dorf (unter 100 Einwohner)
+
+P0x1200    Jachthafen mit Service
+P0x1300    Marine (unbekannt)
+
+P0x1400    Landesname (groß)
+P0x1500    Landesname (klein)
+P0x1e00    Name Provinz oder Region
+P0x1f00    Alternativer Name Provinz oder Region
+P0x2800    Name(allgemein)
+
+P0x1600    Seezeichen, Navigationshilfe
+P0x1601    Nebelhorn
+P0x1602    Funkbake
+P0x1603    Radarantwortbake
+P0x1604    Tagbake, rotes Dreieck
+P0x1605    Tagbake, grünes Quadrat
+P0x1606    Tagbake, weißer Diamant
+P0x1607    unbefeuertes Seezeichen, weiß
+P0x1608    unbefeuertes Seezeichen, rot
+P0x1609    unbefeuertes Seezeichen, grün
+P0x160a    unbefeuertes Seezeichen, schwarz
+P0x160b    unbefeuertes Seezeichen, gelb-amber
+P0x160c    unbefeuertes Seezeichen, orange
+P0x160d    unbefeuertes Seezeichen mehrfarbig
+P0x160e    befeuertes Seezeichen, unbekannt
+P0x160f    befeuertes Seezeichen, weiß
+P0x1610    befeuertes Seezeichen, rot
+P0x1611    befeuertes Seezeichen, grün
+P0x1612    befeuertes Seezeichen, gelb-amber
+P0x1613    befeuertes Seezeichen, orange
+P0x1614    befeuertes Seezeichen, violett
+P0x1615    befeuertes Seezeichen, blau
+P0x1616    befeuertes Seezeichen, mehrfarbig
+
+P0x1c00    nicht klassifiziertes  Hindernis
+P0x1c01    sichtbares Wrack
+P0x1c02    Unterwasserwrack, gefährlich für die Schifffahrt
+P0x1c03    Unterwasserwrack
+P0x1c04    Wrack, mit Schleppgerät vermessen
+P0x1c05    Hindernis, sichtbar bei Hochwasser
+P0x1c06    Hindernis, in Höhe des Kartennulls
+P0x1c07    Hindernis, unter Wasser
+P0x1c08    Hindernis, abgesichert
+P0x1c09    Fels, in Höhe des Kartennulls
+P0x1c0a    Fels, bei Niedrigwasser bedeckt
+P0x1c0b    Tiefenmessung, loten 
+
+P0x1d00    Tiede-Tafel
+
+P0x2000    Autobahnparkplatz
+P0x2100    Autobahnparkplatz mit Gebäude
+P0x2110    Autobahnparkplatz mit Gebäude
+P0x210F    Autobahnparkplatz (bewitschaftet)
+P0x2200    Autobahnparkplatz mit Toilette
+P0x2300    Autobahnparkplatz mit Geschäft
+P0x2400    Autobahnparkplatz mit Wiegestation
+P0x2500    Autobahnparkplatz mit Mautstelle
+P0x2600    Autobahnparkplatz mit Information
+P0x2700    Autobahnparkplatz
+
+P0x2900    Service
+
+P0x2a00    Restaurant
+P0x2a01    Restaurant (amerikanisch)
+P0x2a02    Restaurant (asiatisch)
+P0x2a03    Restaurant (barbecue)
+P0x2a04    Restaurant (chinesisch)
+P0x2a05    Restaurant (indisch)
+P0x2a06    Restaurant (international)
+P0x2a07    Restaurant Schnellrestaurant
+P0x2a08    Restaurant (italienisch)
+P0x2a09    Restaurant (mexicanisch)
+P0x2a0a    Pitzzaria
+P0x2a0b    Fischrestaurant
+P0x2a0c    Steakhaus
+P0x2a0d    Beagel und Donats
+P0x2a0e    Cafe
+P0x2a0f    Restaurant (französisch)
+P0x2a10    Restaurant (deutsch)
+P0x2a11    Restaurant (britisch)
+P0x2a12    Spezialitätenrestaurant
+
+P0x2b00    Unterkunft
+P0x2b01    Hotel oder Motel
+P0x2b02    Bett und Frühstück
+P0x2b03    Camping
+P0x2b04    Resort
+
+P0x2c00    Sehenswürdigkeit
+P0x2c01    Erlebnispark
+P0x2c02    Museum
+P0x2c03    Bibilothek
+P0x2c04    Aussichtspunkt
+P0x2c05    Schule
+P0x2c06    Park/Garten
+P0x2c07    Zoo/Aquarium
+P0x2c08    Arena
+P0x2c09    Halle
+P0x2c0a    Weingut
+P0x2c0b    Kultstätte
+
+P0x2d00    Unterhaltung
+P0x2d01    Theater
+P0x2d02    Bar/Nachtclub
+P0x2d03    Kino
+P0x2d04    Casino
+P0x2d05    Golfplatz
+P0x2d06    Ski-Resort
+P0x2d07    Bowling-Bahn
+P0x2d08    Schlittschuhbahn
+P0x2d09    Badeanstallt
+P0x2d0a    Fitness Studio
+P0x2d0b    Sportflugplatz
+
+P0x2e00    Einkauf
+P0x2e01    Kaufhaus
+P0x2e02    Supermarkt
+P0x2e03    Großhändler
+P0x2e04    Einkaufszentrum
+P0x2e05    Apotheke
+P0x2e06    Geschäft/Laden (klein)
+P0x2e07    Textilgeschäft
+P0x2e08    Baumarkt
+P0x2e09    Raumausstatter
+P0x2e0a    Spezialgeschäft
+P0x2e0b    Computergeschäft
+
+P0x2f00    Service
+P0x2f01    Tankstelle
+P0x2f02    Autovermietung
+P0x2f03    Autowerkstadt
+P0x2f04    Àığîâîêçàë
+P0x2f05    Luftpost
+P0x2f06    Post
+P0x2f07    Bank
+P0x2f08    Packetdienst
+P0x2f09    Marina
+P0x2f0a    Abschleppdienst
+P0x2f0b    Parkhaus/Parkplatz
+P0x2f0c    Touristen-Information
+P0x2f0d    Automobilclub
+P0x2f0e    Autowäsche
+P0x2f0f    Garmin Händler
+P0x2f10    Personaldienstleister
+P0x2f11    Business Service
+P0x2f12    Kommunikationsdienstleister
+P0x2f13    Werkstatt
+P0x2f14    Sozialstation
+P0x2f15    Stadtwerke
+P0x2f16    Autohof
+P0x2f17    Spedition
+
+P0x3000    Nothilfe
+P0x3001    Polizei
+P0x3002    Krankenhaus
+P0x3003    Rathaus
+P0x3004    Gericht
+P0x3005    Rettungsleitstelle
+P0x3006    Grenzübergang
+P0x3007    Behörde
+P0x3008    Feuerwehr
+
+P0x4000    Golf
+P0x4100    Angelstelle
+P0x4200    Wrack
+P0x4300    Marina
+P0x4400    Autogas
+P0x4500    Restaurant
+P0x4600    Bar
+P0x4700    Bootsverladestelle
+P0x4800    Campinkplatz
+P0x4900    Park
+P0x4a00    Rastplatz
+P0x4b00    Erste Hilfe Station
+P0x4c00    Information
+P0x4d00    Parkplatz
+P0x4e00    Toilette
+P0x4f00    Dusche
+
+P0x5000    Trinkwasser
+P0x5100    Telefon
+P0x5200    Aussichtspunkt
+P0x5300    Skistation
+P0x5400    Badestelle
+P0x5500    Staudamm
+
+P0x5600    Bewachter Bereich
+P0x5700    Gefährlicher Bereich
+P0x5800    Sperrgebiet
+
+P0x5900    Flugplatz
+P0x5901    Großer Flugplatz
+P0x5902    Mittelgroßer Flugplatz
+P0x5903    Kleiner Flugplatz
+P0x5904    Hubschrauberlandeplatz
+P0x5905    Flugplatz
+
+P0x5a00    Wegweiser
+P0x5b00    Glocke
+P0x5c00    Taucherbereich
+P0x5d00    Seezeichen (grün, rechteckig)
+P0x5e00    Seezeichen (rot, dreieckig)
+P0x6000    Horn
+P0x6100    Gebäude
+
+P0x6200    Tiefenpunkt
+P0x6300    Höhenpunkt
+
+P0x6400    Bauwerk
+P0x6401    Brücke
+P0x6402    Gebäude
+P0x6403    Friedhof
+P0x6404    Gotteshaus
+P0x6405    Rathaus
+P0x6406    Kreuzung
+P0x6407    Damm
+P0x6408    Krankenhaus
+P0x6409    Deich
+P0x640a    Wegweiser
+P0x640b    Truppenübungsplatz
+P0x640c    Bergwerk
+P0x640d    Oelfeld
+P0x640e    Park
+P0x640f    Post
+P0x6410    Schule
+P0x6411    Turm
+P0x6412    Ausgangspunkt für Wanderweg
+P0x6413    Tunnel
+P0x6414    Brunnen
+P0x6415    Wüstung
+P0x6416    Ruine
+
+P0x6500    Wasserbauliche Einrichtung
+P0x6501    Arroyo
+P0x6502    Sandbank
+P0x6503    Küste
+P0x6504    Flußbiegung
+P0x6505    Kanal
+P0x6506    Wasserstraße
+P0x6507    Bucht
+P0x6508    Wasserfall
+P0x6509    Geysier
+P0x650a    Gletscher
+P0x650b    Hafen
+P0x650c    Insel
+P0x650d    See
+P0x650e    Stromschnelle
+P0x650f    Wasserspeicher
+P0x6510    See
+P0x6511    Quelle
+P0x6512    Strom
+P0x6513    Moor
+
+P0x6600    Landschaftsteil
+P0x6601    Höle
+P0x6602    Gebiet
+P0x6603    Becken
+P0x6604    Strand
+P0x6605    Bank
+P0x6606    Kap
+P0x6607    Klippe
+P0x6608    Krater
+P0x6609    Ebene
+P0x660a    Wald
+P0x660b    Schlucht, Spalte, Klamm
+P0x660c    Gut
+P0x660d    Landenge
+P0x660e    Lava
+P0x660f    Säule
+P0x6610    Ebene
+P0x6611    Range
+P0x6612    Reservat
+P0x6613    Grat
+P0x6614    Felsen
+P0x6615    Hang, Wand
+P0x6616    Gipfel
+P0x6617    Tal
+P0x6618    Wald
+
+L0x00    Straße
+L0x01    Autobahn
+L0x02    Autostraße
+L0x03    Schnellstraße
+L0x04    Hauptstraße
+L0x05    Nebenstraße
+L0x06    Anliegerstraße
+L0x07    Privatstraße
+L0x08    Autobahnauffahrt (langsam)
+L0x09    Autobahnauffahrt (schnell)
+L0x0a    unbefestigte Straße
+L0x0b    Autobahnzubringerstraße
+L0x0c    Kreisverkehr
+
+L0x14    Gleis
+L0x15    Küstenlinie
+L0x16    Wanderweg
+L0x18    Bach
+L0x19    Zeitzonengrenze
+L0x1a    Fähre
+L0x1b    Fähre
+L0x1c    Provinzegrenze
+L0x1d    Landesgrenze
+L0x1e    Internationale grenze
+L0x1f    Fluß
+
+L0x20    Höhenlinie (dünn)
+L0x21    Höhenlinie (mittel)
+L0x22    Höhenlinie (dick)
+L0x23    Tiefenlinie (dünn)
+L0x24    Tiefenlinie (mittel)
+L0x25    Tiefenlinie (dick)
+L0x26    Bach/Graben
+L0x27    Rollbahn
+L0x28    Pipeline
+L0x29    Freileitung
+L0x2a    Seegrenze
+L0x2b    Gefahrenzone
+
+G0x01    Bebautes Gebiet (>200000 Einwohner)
+G0x02    Bebautes Gebiet (<200000 Einwohner)
+G0x03    Gartenhaus-, Bungalow-  Gebiet
+G0x04    Militärgelände
+G0x05    Parkplatz
+G0x06    Parkhaus
+G0x07    Flugplatz
+G0x08    Einkaufszentrum
+G0x09    Marina
+G0x0a    Universität, Hochschule
+G0x0b    Krankenhaus
+G0x0c    Gewerbegebiet
+G0x0d    Reservat
+G0x0e    Rollbahn
+
+G0x13    Gebäude
+G0x14    Nationalpark
+G0x15    Nationalpark
+G0x16    Nationalpark
+G0x17    Stadtpark
+G0x18    Golfplatz
+G0x19    Sportkomplex
+G0x1a    Friedhof
+G0x1e    Naturpark
+G0x1f    Naturpark
+
+G0x20    Naturpark
+G0x28    Meer/Ozean
+G0x29    Blau/ unbekannt
+
+G0x32    Meer
+G0x3b    Blau/ unbekannt
+G0x3c    großer See (250-600 qkm)
+G0x3d    großer See (77-250 qkm)
+G0x3e    mittlerer See (25-77 qkm)
+G0x3f    mittlerer See (11-25 qkm)
+
+G0x40    kleiner See (0.25-11 qkm)
+G0x41    kleiner See (<0.25 qkm)
+G0x42    großer See (>3.300 qkm)
+G0x43    großer See (1.100-3.300 qkm)
+G0x44    großer See (600-1.100 qkm)
+G0x45    Blau/ unbekannt
+G0x46    Strom  (>1 km)
+G0x47    Großer Fluß (200 m-1 km)
+G0x48    mittlerer Fluss (40-200 m)
+G0x49    kleiner (<40 m)
+G0x4a    Hintergrund
+G0x4b    Definitionbereich
+G0x4c    Wasserfläche
+G0x4d    Gletscher
+G0x4e    Pflanzung, Plantage, Gärtnerei
+G0x4f    Gestrüpp
+
+G0x50    Wald
+G0x51    Moor, Weide(feucht)
+G0x52    Tundra, Ödland
+G0x53    Sandbank

@@ -46,15 +46,15 @@ namespace GarminCore.Files.DEM {
                break;
 
             case 2:
-               Offset = br.ReadUInt16();
+               Offset = br.Read2AsUShort();
                break;
 
             case 3:
-               Offset = br.Read3U();
+               Offset = br.Read3AsUInt();
                break;
 
             case 4:
-               Offset = br.ReadUInt32();
+               Offset = br.Read4UInt();
                break;
          }
 
@@ -64,7 +64,7 @@ namespace GarminCore.Files.DEM {
                break;
 
             case 2:
-               Baseheight = br.ReadInt16();
+               Baseheight = br.Read2AsShort();
                break;
          }
 
@@ -74,7 +74,7 @@ namespace GarminCore.Files.DEM {
                break;
 
             case 2:
-               Diff = br.ReadUInt16();
+               Diff = br.Read2AsUShort();
                break;
          }
 

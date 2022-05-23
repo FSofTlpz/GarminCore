@@ -31,8 +31,6 @@ diesem Programm erhalten haben. Falls nicht, siehe
 */
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 
 namespace GarminCore.Files {
 
@@ -154,7 +152,7 @@ namespace GarminCore.Files {
          public override void Read(BinaryReaderWriter br, object extdata = null) {
             _SymbolicScaleDenominator = br.ReadByte();
             CoordBits = br.ReadByte();
-            SubdivInfos = br.ReadUInt16();
+            SubdivInfos = br.Read2AsUShort();
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata = null) {
@@ -200,21 +198,22 @@ namespace GarminCore.Files {
 
       public class SymbolicScaleDenominatorAndBits {
 
-         List<StdFile_TRE.MapLevel> ml;
+         List<MapLevel> ml;
 
 
          public SymbolicScaleDenominatorAndBits() {
             ml = new List<StdFile_TRE.MapLevel>();
          }
 
-         public SymbolicScaleDenominatorAndBits(IList<StdFile_TRE.MapLevel> mllst) : this() {
+         public SymbolicScaleDenominatorAndBits(IList<MapLevel> mllst) : this() {
             Clear();
             for (int i = 0; i < mllst.Count; i++) {
-               MapLevel mli = new MapLevel(mllst[i]);
-               // da im Original nicht gespeichert, wird sie hier sicherheitshalber berechnet
-               mli.FirstSubdivInfoNumber = (ushort)(ml.Count == 0 ?
+               MapLevel mli = new MapLevel(mllst[i]) {
+                  // da im Original nicht gespeichert, wird sie hier sicherheitshalber berechnet
+                  FirstSubdivInfoNumber = (ushort)(ml.Count == 0 ?
                                                 1 :
-                                                ml[ml.Count - 1].FirstSubdivInfoNumber + ml[ml.Count - 1].SubdivInfos);
+                                                ml[ml.Count - 1].FirstSubdivInfoNumber + ml[ml.Count - 1].SubdivInfos)
+               };
                ml.Add(mli);
             }
          }
@@ -239,13 +238,14 @@ namespace GarminCore.Files {
             if (bits < 2 || bits > 24)
                throw new ArgumentException("Die Bitanzahl muss im Bereich 2 .. 24 sein.");
 
-            StdFile_TRE.MapLevel mli = new StdFile_TRE.MapLevel();
-            mli.SymbolicScaleDenominator = (byte)scale;
-            mli.CoordBits = (byte)bits;
-            mli.FirstSubdivInfoNumber = (ushort)(ml.Count == 0 ?
+            StdFile_TRE.MapLevel mli = new StdFile_TRE.MapLevel {
+               SymbolicScaleDenominator = (byte)scale,
+               CoordBits = (byte)bits,
+               FirstSubdivInfoNumber = (ushort)(ml.Count == 0 ?
                                                          1 :
-                                                         ml[ml.Count - 1].FirstSubdivInfoNumber + ml[ml.Count - 1].SubdivInfos);
-            mli.SubdivInfos = (ushort)subdivs;
+                                                         ml[ml.Count - 1].FirstSubdivInfoNumber + ml[ml.Count - 1].SubdivInfos),
+               SubdivInfos = (ushort)subdivs
+            };
             if (ml.Count == 0)
                mli.Inherited = true;
             else {
@@ -261,7 +261,7 @@ namespace GarminCore.Files {
          /// erzeugt die Maplevel-Liste aus den internen Daten
          /// </summary>
          /// <returns></returns>
-         public List<StdFile_TRE.MapLevel> GetMaplevelList() {
+         public List<MapLevel> GetMaplevelList() {
             List<StdFile_TRE.MapLevel> lst = new List<StdFile_TRE.MapLevel>();
             for (int i = 0; i < ml.Count; i++)
                lst.Add(new StdFile_TRE.MapLevel(ml[i]));
@@ -781,12 +781,12 @@ namespace GarminCore.Files {
          }
 
          public override void Read(BinaryReaderWriter br, object extdata = null) {
-            Data.Offset = br.Read3U();
+            Data.Offset = br.Read3AsUInt();
             Content = (SubdivContent)br.ReadByte();
-            Center.Longitude = br.Read3();
-            Center.Latitude = br.Read3();
-            _HalfWidth = br.ReadUInt16();
-            HalfHeight = br.ReadUInt16();
+            Center.Longitude = br.Read3Int();
+            Center.Latitude = br.Read3Int();
+            _HalfWidth = br.Read2AsUShort();
+            HalfHeight = br.Read2AsUShort();
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata = null) {
@@ -798,6 +798,19 @@ namespace GarminCore.Files {
             bw.Write(HalfHeight);
          }
 
+         /// <summary>
+         /// liefert die Umgrenzung der Subdiv
+         /// </summary>
+         /// <param name="coordbits"></param>
+         /// <returns></returns>
+         public Bound GetBound(int coordbits) {
+            double halfWidthDegree = Coord.RawUnits2Degree(HalfWidth, coordbits);
+            double halfHeightDegree = Coord.RawUnits2Degree(HalfHeight, coordbits);
+            return new Bound(Center.LongitudeDegree - halfWidthDegree,
+                             Center.LongitudeDegree + halfWidthDegree,
+                             Center.LatitudeDegree - halfHeightDegree,
+                             Center.LatitudeDegree + halfHeightDegree);
+         }
 
          public int GetHalfWidthMapUnits(int coordbits) {
             return Coord.RawUnits2MapUnits(HalfWidth, coordbits);
@@ -875,7 +888,7 @@ namespace GarminCore.Files {
 
          public override void Read(BinaryReaderWriter br, object extdata) {
             base.Read(br, extdata);
-            FirstChildSubdivIdx1 = br.ReadUInt16();
+            FirstChildSubdivIdx1 = br.Read2AsUShort();
          }
 
          public override void Write(BinaryReaderWriter bw, object extdata) {
@@ -1041,9 +1054,9 @@ namespace GarminCore.Files {
          }
 
          public override void Read(BinaryReaderWriter br, object extdata = null) {
-            AreasOffset = br.ReadUInt32();
-            LinesOffset = br.ReadUInt32();
-            PointsOffset = br.ReadUInt32();
+            AreasOffset = br.Read4UInt();
+            LinesOffset = br.Read4UInt();
+            PointsOffset = br.Read4UInt();
             if (extdata != null)
                DataLength = (UInt16)extdata;
             if (DataLength > 12)
@@ -1354,10 +1367,10 @@ namespace GarminCore.Files {
       public override void ReadHeader(BinaryReaderWriter br) {
          base.ReadCommonHeader(br, Type);
 
-         North = br.Read3();
-         East = br.Read3();
-         South = br.Read3();
-         West = br.Read3();
+         North = br.Read3Int();
+         East = br.Read3Int();
+         South = br.Read3Int();
+         West = br.Read3Int();
 
          MaplevelBlock = new DataBlock(br);
          SubdivisionBlock = new DataBlock(br);
@@ -1365,7 +1378,7 @@ namespace GarminCore.Files {
 
          br.ReadBytes(Unknown_x3B);
          POIDisplayFlags = br.ReadByte();
-         DisplayPriority = br.Read3();
+         DisplayPriority = br.Read3Int();
          br.ReadBytes(Unknown_x43);
 
          LineOverviewBlock = new DataBlockWithRecordsize(br);
@@ -1376,22 +1389,22 @@ namespace GarminCore.Files {
          br.ReadBytes(Unknown_x70);
 
          if (Headerlength > 0x74) {          // > 116
-            MapID = br.ReadUInt32();
+            MapID = br.Read4UInt();
 
             if (Headerlength > 0x78) {       // > 120
                br.ReadBytes(Unknown_x78);
                ExtTypeOffsetsBlock = new DataBlockWithRecordsize(br);
                br.ReadBytes(Unknown_x86);
                ExtTypeOverviewsBlock = new DataBlockWithRecordsize(br);
-               ExtLineCount = br.ReadUInt16();
-               ExtAreaCount = br.ReadUInt16();
-               ExtPointCount = br.ReadUInt16();
+               ExtLineCount = br.Read2AsUShort();
+               ExtAreaCount = br.Read2AsUShort();
+               ExtPointCount = br.Read2AsUShort();
 
                if (Headerlength > 0x9a) {    // > 154
 
                   for (int i = 0; i < MapValues.Length; i++)
-                     MapValues[i] = br.ReadUInt32();
-                  MaplevelScrambleKey = br.ReadUInt32();
+                     MapValues[i] = br.Read4UInt();
+                  MaplevelScrambleKey = br.Read4UInt();
 
                   UnknownBlock_xAE = new DataBlock(br);
                   br.ReadBytes(Unknown_xB6);
@@ -1476,8 +1489,9 @@ namespace GarminCore.Files {
          // Copyright-Offsets einlesen
          filesectiontype = (int)InternalFileSections.CopyrightBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             Decode_CopyrightBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
             Filesections.RemoveSection(filesectiontype);
          }
@@ -1485,8 +1499,9 @@ namespace GarminCore.Files {
          // alle Maplevel einlesen
          filesectiontype = (int)InternalFileSections.MaplevelBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             if (!Decode_MapLevelBlock(Filesections.GetSectionDataReader(filesectiontype), bl))
                return;
             Filesections.RemoveSection(filesectiontype);
@@ -1502,24 +1517,27 @@ namespace GarminCore.Files {
          // Overview-Objekte einlesen
          filesectiontype = (int)InternalFileSections.LineOverviewBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             Decode_LineOverviewBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
             Filesections.RemoveSection(filesectiontype);
          }
 
          filesectiontype = (int)InternalFileSections.AreaOverviewBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             Decode_AreaOverviewBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
             Filesections.RemoveSection(filesectiontype);
          }
 
          filesectiontype = (int)InternalFileSections.PointOverviewBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             Decode_PointOverviewBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
             Filesections.RemoveSection(filesectiontype);
          }
@@ -1527,8 +1545,9 @@ namespace GarminCore.Files {
          // erweiterte Typen einlesen
          filesectiontype = (int)InternalFileSections.ExtTypeOverviewsBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             Decode_ExtTypeOverviewsBlock(Filesections.GetSectionDataReader(filesectiontype), bl, ExtLineCount, ExtAreaCount, ExtPointCount);
             Filesections.RemoveSection(filesectiontype);
          }
@@ -1536,8 +1555,9 @@ namespace GarminCore.Files {
          // Offsets für die erweiterten Typen einlesen und umwandeln
          filesectiontype = (int)InternalFileSections.ExtTypeOffsetsBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             SplitExtTypeOffsetList(Decode_ExtTypeOffsetsBlock(Filesections.GetSectionDataReader(filesectiontype), bl));
             Filesections.RemoveSection(filesectiontype);
          }
@@ -1631,7 +1651,7 @@ namespace GarminCore.Files {
                      }
                }
 
-            UInt32 endpos_rgn = br.ReadUInt32(); // Endposition des Datenbereichs in RGN-Datei lesen (treFile.setLastRgnPos(rgnFile.position() - RGNHeader.HEADER_LEN);)
+            UInt32 endpos_rgn = br.Read4UInt(); // Endposition des Datenbereichs in RGN-Datei lesen (treFile.setLastRgnPos(rgnFile.position() - RGNHeader.HEADER_LEN);)
             // Jetzt kann die Länge der Datenblöcke jeder Subdiv gesetzt werden.
             for (int i = 0; i < SubdivInfoList.Count - 1; i++)
                SubdivInfoList[i].Data.Length = SubdivInfoList[i + 1].Data.Offset - SubdivInfoList[i].Data.Offset;
@@ -2161,11 +2181,12 @@ namespace GarminCore.Files {
          ExtendedTypeOffsets nexttypeoffset = new ExtendedTypeOffsets();
          for (int i = 0; i < SubdivInfoList.Count; i++) {
             DataBlock bl = new DataBlock();
-            ExtendedTypeOffsets typeoffset = new ExtendedTypeOffsets();
-            // Daten übernehmen
-            typeoffset.LinesOffset = nexttypeoffset.LinesOffset;
-            typeoffset.AreasOffset = nexttypeoffset.AreasOffset;
-            typeoffset.PointsOffset = nexttypeoffset.PointsOffset;
+            ExtendedTypeOffsets typeoffset = new ExtendedTypeOffsets {
+               // Daten übernehmen
+               LinesOffset = nexttypeoffset.LinesOffset,
+               AreasOffset = nexttypeoffset.AreasOffset,
+               PointsOffset = nexttypeoffset.PointsOffset
+            };
 
             if (ExtLineBlock4Subdiv.TryGetValue(i, out bl)) {
                typeoffset.Kinds++;
@@ -2329,11 +2350,11 @@ namespace GarminCore.Files {
       /// <para>(leicht modifiziert)</para>
       /// </summary>
       class MapValuesCalculator {
-         uint mapid;
-         uint headerlength;
+         readonly uint mapid;
+         readonly uint headerlength;
 
          List<byte[]> nibble;
-         uint[] value;
+         readonly uint[] value;
 
          /* Die Karte "TOPO Deutschland v3.gmap" enthält im "gelockten" Zustand folgende Werte:
           *    0x493a1ab2
@@ -2400,7 +2421,7 @@ namespace GarminCore.Files {
             return v;
          }
 
-         byte[] offsettransform = { 0x6, 0x7, 0x5, 0xB, 0x3, 0xA, 0xD, 0xC, 0x1, 0xF, 0x4, 0xE, 0x8, 0x0, 0x2, 0x9 };
+         readonly byte[] offsettransform = { 0x6, 0x7, 0x5, 0xB, 0x3, 0xA, 0xD, 0xC, 0x1, 0xF, 0x4, 0xE, 0x8, 0x0, 0x2, 0x9 };
 
          /// <summary>
          /// festes Offset zu jedem Nibble addieren
@@ -2444,7 +2465,7 @@ namespace GarminCore.Files {
                v[i] = (byte)(mapIdNibble(i - 4) + v4[i]);
          }
 
-         byte[] mapidtransform = { 0x0, 0x1, 0xF, 0x5, 0xD, 0x4, 0x7, 0x6, 0xB, 0x9, 0xE, 0x8, 0x2, 0xA, 0xC, 0x3 };
+         readonly byte[] mapidtransform = { 0x0, 0x1, 0xF, 0x5, 0xD, 0x4, 0x7, 0x6, 0xB, 0x9, 0xE, 0x8, 0x2, 0xA, 0xC, 0x3 };
 
          void calcThird() {
             for (int i = 0; i < nibble[3].Length; i++)
@@ -2561,8 +2582,7 @@ namespace GarminCore.Files {
       /// <param name="type"></param>
       /// <returns></returns>
       public bool OverviewTypeExist(Overview ovtype, int type) {
-         byte subtype;
-         byte typ = SplitType(type, out subtype);
+         byte typ = SplitType(type, out byte subtype);
          if (type >= 0x10000) {
             switch (ovtype) {
                case Overview.Point:
@@ -2622,8 +2642,7 @@ namespace GarminCore.Files {
       /// <param name="maxlevel"></param>
       public void OverviewAdd(Overview ovtype, int type, byte maxlevel) {
          if (!OverviewTypeExist(ovtype, type)) {
-            byte subtype;
-            byte typ = SplitType(type, out subtype);
+            byte typ = SplitType(type, out byte subtype);
             switch (ovtype) {
                case Overview.Point:
                   if (((type & 0xFF) & ~0x1F) != 0)

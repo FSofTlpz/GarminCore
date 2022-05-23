@@ -89,8 +89,7 @@ namespace GarminCore.DskImg {
             return _Name.Trim() + "." + _Typ.Trim();
          }
          set {
-            string name, typ;
-            GetValidFullname(value, out name, out typ);
+            GetValidFullname(value, out string name, out string typ);
             Name = name;
             Typ = typ;
          }
@@ -102,8 +101,7 @@ namespace GarminCore.DskImg {
       /// <param name="fullname"></param>
       /// <returns></returns>
       public static string GetValidFullname(string fullname) {
-         string name, typ;
-         GetValidFullname(fullname, out name, out typ);
+         GetValidFullname(fullname, out string name, out string typ);
          return fullname;
       }
 
@@ -240,7 +238,7 @@ namespace GarminCore.DskImg {
          Typ = br.ReadString(3);
 
          // 0x0c
-         Filesize = br.ReadUInt32();
+         Filesize = br.Read4UInt();
 
          // 0x10
          Flag = br.ReadByte();
@@ -253,7 +251,7 @@ namespace GarminCore.DskImg {
 
          // 0x20
          for (int i = 0; i < MaxBlockNumberCount; i++) {
-            UInt16 no = br.ReadUInt16();
+            UInt16 no = br.Read2AsUShort();
             if (no != 0xffff)
                blocks.Add(no);
          }

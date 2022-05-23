@@ -33,9 +33,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 
-#pragma warning disable 0661,0660
+#pragma warning disable 0661,0660,IDE1006
 
 namespace GarminCore.Files {
 
@@ -100,22 +101,28 @@ namespace GarminCore.Files {
       /// <para>Da die Verweise aus der Indextabelle der RGN-Datei nur einen 1-Byte-Index enthalten, sollte die Summe der Punkte vermutlich nicht größer als 255 sein (?).</para>
       /// </summary>
       public class SubdivData : BinaryReaderWriter.DataStruct {
+
          /// <summary>
          /// Liste der Punkte
          /// </summary>
-         public List<RawPointData> PointList;
+         public List<RawPointData> PointList1;
+
          /// <summary>
-         /// Liste der IndexPunkte (wahrscheinlich nur für "Stadt"-Typen, kleiner 0x12)
+         /// Liste der Punkte (wahrscheinlich nur für "Stadt"-Typen, kleiner 0x12)
          /// </summary>
-         public List<RawPointData> IdxPointList;
+         public List<RawPointData> PointList2;
+
          /// <summary>
          /// Liste der Polylines
          /// </summary>
          public List<RawPolyData> LineList;
+
          /// <summary>
          /// Liste der Polygone
          /// </summary>
          public List<RawPolyData> AreaList;
+
+         // --------------------------------------------------------------------
 
          // Die Listen für die erweiterten Daten werden hier nur verwaltet. Die Speicherung dieser Daten erfolgt NICHT im Subdiv-Bereich.
 
@@ -123,49 +130,21 @@ namespace GarminCore.Files {
          /// Listen der erweiterten Linien (nur zur Datenverwaltung; die Speicherung erfolgt außerhalb der <see cref="SubdivData"/>!)
          /// </summary>
          public List<ExtRawPolyData> ExtLineList;
+
          /// <summary>
          /// Listen der erweiterten Flächen (nur zur Datenverwaltung; die Speicherung erfolgt außerhalb der <see cref="SubdivData"/>!)
          /// </summary>
          public List<ExtRawPolyData> ExtAreaList;
+
          /// <summary>
          /// Listen der erweiterten Punkte (nur zur Datenverwaltung; die Speicherung erfolgt außerhalb der <see cref="SubdivData"/>!)
          /// </summary>
          public List<ExtRawPointData> ExtPointList;
 
-         /// <summary>
-         /// Größe des Speicherbereiches in der RGN-Datei
-         /// </summary>
-         public uint DataLength() {
-            uint len = 0;
-            for (int i = 0; i < PointList.Count; i++)
-               len += PointList[i].DataLength;
-            for (int i = 0; i < IdxPointList.Count; i++)
-               len += IdxPointList[i].DataLength;
-            for (int i = 0; i < LineList.Count; i++)
-               len += LineList[i].DataLength;
-            for (int i = 0; i < AreaList.Count; i++)
-               len += AreaList[i].DataLength;
-
-            if (len > 0) {          // sonst Subdiv ohne Inhalt
-               int types = 0;
-               if (PointList.Count > 0)
-                  types++;
-               if (IdxPointList.Count > 0)
-                  types++;
-               if (LineList.Count > 0)
-                  types++;
-               if (AreaList.Count > 0)
-                  types++;
-               len += (uint)((types - 1) * 2);
-            }
-
-            return len;
-         }
-
 
          public SubdivData() {
-            PointList = new List<RawPointData>();
-            IdxPointList = new List<RawPointData>();
+            PointList1 = new List<RawPointData>();
+            PointList2 = new List<RawPointData>();
             LineList = new List<RawPolyData>();
             AreaList = new List<RawPolyData>();
 
@@ -174,110 +153,13 @@ namespace GarminCore.Files {
             ExtPointList = new List<ExtRawPointData>();
          }
 
-         /*
-                  public List<StdFile_TRE.SubdivInfoBasic.SubdivContent> ContentTest(BinaryReaderWriter br, DataBlock block) {
-                     List<StdFile_TRE.SubdivInfoBasic.SubdivContent> cont = new List<StdFile_TRE.SubdivInfoBasic.SubdivContent>();
-
-                     br.Seek(block.Offset);
-                     // max. 3 2-Byte-Pointer
-                     if (block.Length >= 6) {
-                        UInt16 p1 = br.ReadUInt16();
-                        UInt16 p2 = br.ReadUInt16();
-                        UInt16 p3 = br.ReadUInt16();
-
-                        // pot. Pointer dürfen nicht kleiner werden
-                        if (p2 < p1)
-                           p2 = 0;
-                        if (p3 < p2)
-                           p3 = 0;
-
-                        // pot. Pointer dürfen nicht aus dem Block herauszeigen
-                        if (block.Length <= p3)
-                           p3 = 0;
-                        if (block.Length <= p2)
-                           p2 = 0;
-                        if (block.Length <= p1)
-                           p1 = 0;
-
-                        // Liste der denkbaren Inhalte erzeugen
-                        List<StdFile_TRE.SubdivInfoBasic.SubdivContent> test = new List<StdFile_TRE.SubdivInfoBasic.SubdivContent>();
-
-                        if (p3 > 0) {           // 3 Pointer möglich
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
-                        }
-                        if (p2 > 0) {           // 2 Pointer möglich
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines);
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
-                        }
-                        if (p1 > 0) {           // 1 Pointer möglich
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex);
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines);
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines);
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
-                           test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines |
-                                    StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
-                        }
-                        // 0 Pointer
-                        test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.pois);
-                        test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.poisindex);
-                        test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.polylines);
-                        test.Add(StdFile_TRE.SubdivInfoBasic.SubdivContent.polygones);
-
-                        //br.Seek(block.Offset);
-                        //StringBuilder sb = DumpMemory(br.ReadBytes((int)block.Length), 0, -1, 16);
-                        //Debug.WriteLine(sb);
-
-                        foreach (StdFile_TRE.SubdivInfoBasic.SubdivContent content in test) {
-                           try {
-                              br.Seek(block.Offset);
-                              if (TestRead(br, block.Length | ((uint)content << 24)) == 0)
-                                 cont.Add(content);
-                           } catch (Exception ex) {
-
-                              Console.Error.WriteLine(ex.Message);
-
-                           }
-                        }
-                     }
-
-                     return cont;
-                  }
-
-                  int TestRead(BinaryReaderWriter br, object extdata) {
-                     probablyerror = 0;
-                     Read(br, extdata);
-                     return probablyerror;
-                  }
-         */
-
-         int probablyerror = 0;
-
          public override void Read(BinaryReaderWriter br, object extdata) {
             UInt32 ext = (UInt32)extdata;
             StdFile_TRE.SubdivInfoBasic.SubdivContent Content = (StdFile_TRE.SubdivInfoBasic.SubdivContent)(ext >> 24);
             uint SubdivLength = ext & 0xFFFF;
 
-            PointList.Clear();
-            IdxPointList.Clear();
+            PointList1.Clear();
+            PointList2.Clear();
             LineList.Clear();
             AreaList.Clear();
 
@@ -287,7 +169,6 @@ namespace GarminCore.Files {
             if (Content == StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing) {
                br.Seek(SubdivLength, SeekOrigin.Current);
                Debug.WriteLine("Unbekannter Subdiv-Inhalt");
-               probablyerror++;
                return;
             }
 
@@ -332,7 +213,7 @@ namespace GarminCore.Files {
             offstype.Dequeue();
             while (offstype.Count > 0) {
                // Da die Offsets nur als 2-Byte-Zahl gespeichert werden, ist die Größe eines Subdiv auf 65kB begrenzt!
-               UInt16 offset = br.ReadUInt16();
+               UInt16 offset = br.Read2AsUShort();
                switch (offstype.Dequeue()) {
                   case StdFile_TRE.SubdivInfoBasic.SubdivContent.poi:
                      data_points.Offset = offset;
@@ -397,29 +278,26 @@ namespace GarminCore.Files {
             if (data_points.Offset != UInt32.MaxValue) {
                if (br.Position != subdivstart + data_points.Offset) {
                   Debug.WriteLine("Vermutlich Fehler vor dem Einlesen des Point-Bereiches einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + data_points.Offset));
-                  probablyerror++;
                }
                br.Seek(subdivstart + data_points.Offset);
                long endpos = br.Position + data_points.Length;
                while (br.Position < endpos)
-                  PointList.Add(new RawPointData(br));
+                  PointList1.Add(new RawPointData(br));
             }
 
             if (data_idxpoints.Offset != UInt32.MaxValue) {
                if (br.Position != subdivstart + data_idxpoints.Offset) {
                   Debug.WriteLine("Vermutlich Fehler vor dem Einlesen des IdxPoint-Bereiches einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + data_idxpoints.Offset));
-                  probablyerror++;
                }
                br.Seek(subdivstart + data_idxpoints.Offset);
                long endpos = br.Position + data_idxpoints.Length;
                while (br.Position < endpos)
-                  IdxPointList.Add(new RawPointData(br));
+                  PointList2.Add(new RawPointData(br));
             }
 
             if (data_polylines.Offset != UInt32.MaxValue) {
                if (br.Position != subdivstart + data_polylines.Offset) {
                   Debug.WriteLine("Vermutlich Fehler vor dem Einlesen des Polyline-Bereiches einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + data_polylines.Offset));
-                  probablyerror++;
                }
                br.Seek(subdivstart + data_polylines.Offset);
                long endpos = br.Position + data_polylines.Length;
@@ -430,7 +308,6 @@ namespace GarminCore.Files {
             if (data_polygons.Offset != UInt32.MaxValue) {
                if (br.Position != subdivstart + data_polygons.Offset) {
                   Debug.WriteLine("Vermutlich Fehler vor dem Einlesen des Polygon-Bereiches einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + data_polygons.Offset));
-                  probablyerror++;
                }
                br.Seek(subdivstart + data_polygons.Offset);
                long endpos = br.Position + data_polygons.Length;
@@ -440,51 +317,22 @@ namespace GarminCore.Files {
 
             if (br.Position != subdivstart + SubdivLength) {
                Debug.WriteLine("Vermutlich Fehler beim Einlesen der Datens einer Subdiv. Offset-Differenz {0} Bytes.", br.Position - (subdivstart + SubdivLength));
-               probablyerror++;
             }
          }
 
-         public override void Write(BinaryReaderWriter bw, object extdata = null) {
-            uint types = 0;
-            if (PointList.Count > 0)
-               types++;
-            if (IdxPointList.Count > 0)
-               types++;
-            if (LineList.Count > 0)
-               types++;
-            if (AreaList.Count > 0)
-               types++;
-            if (types > 1) {      // dann sind Offsetangaben nötig
-               uint[] ListLen = { 0, 0, 0, 0 };
-               for (int i = 0; i < PointList.Count; i++)
-                  ListLen[0] += PointList[i].DataLength;
-               for (int i = 0; i < IdxPointList.Count; i++)
-                  ListLen[1] += IdxPointList[i].DataLength;
-               for (int i = 0; i < LineList.Count; i++)
-                  ListLen[2] += LineList[i].DataLength;
-               for (int i = 0; i < AreaList.Count; i++)
-                  ListLen[3] += AreaList[i].DataLength;
+         public override void Write(BinaryReaderWriter bw, object extdata = null) { }
 
-               uint offsets = (types - 1) * 2;         // Platz für die Offsets einkalkulieren
-
-               bool first = true;
-               for (int i = 0; i < ListLen.Length; i++)
-                  if (ListLen[i] != 0) {
-                     if (!first)
-                        bw.Write((UInt16)offsets);
-                     offsets += ListLen[i];
-                     first = false;
-                  }
-            }
-
-            for (int i = 0; i < PointList.Count; i++)
-               PointList[i].Write(bw);
-            for (int i = 0; i < IdxPointList.Count; i++)
-               IdxPointList[i].Write(bw);
-            for (int i = 0; i < LineList.Count; i++)
-               LineList[i].Write(bw);
-            for (int i = 0; i < AreaList.Count; i++)
-               AreaList[i].Write(bw);
+         /// <summary>
+         /// <see cref="Bound"/> aller Objekte der Subdiv
+         /// </summary>
+         /// <returns></returns>
+         public Bound GetBound4Deltas(int coordbits, MapUnitPoint subdiv_center) {
+            Bound br = GetRawBound4Deltas();
+            return br != null ? new Bound(Longitude.RawUnits2MapUnits(br.Left, coordbits) + subdiv_center.Longitude,
+                                          Longitude.RawUnits2MapUnits(br.Right, coordbits) + subdiv_center.Longitude,
+                                          Longitude.RawUnits2MapUnits(br.Bottom, coordbits) + subdiv_center.Latitude,
+                                          Longitude.RawUnits2MapUnits(br.Top, coordbits) + subdiv_center.Latitude) :
+                                null;
          }
 
          /// <summary>
@@ -492,14 +340,15 @@ namespace GarminCore.Files {
          /// </summary>
          /// <returns>null, wenn keine Punkte x.</returns>
          protected Bound GetRawBound4Deltas() {
-            List<Bound> rbs = new List<Bound>();
-            rbs.Add(GetRawBoundDelta4PointDataList(PointList));
-            rbs.Add(GetRawBoundDelta4PointDataList(IdxPointList));
-            rbs.Add(GetRawBoundDelta4PolyDataList(LineList));
-            rbs.Add(GetRawBoundDelta4PolyDataList(AreaList));
-            rbs.Add(GetRawBoundDelta4ExtPointDataList(ExtPointList));
-            rbs.Add(GetRawBoundDelta4ExtPolyDataList(ExtLineList));
-            rbs.Add(GetRawBoundDelta4ExtPolyDataList(ExtAreaList));
+            List<Bound> rbs = new List<Bound> {
+               GetRawBoundDelta4PointDataList(PointList1),
+               GetRawBoundDelta4PointDataList(PointList2),
+               GetRawBoundDelta4PolyDataList(LineList),
+               GetRawBoundDelta4PolyDataList(AreaList),
+               GetRawBoundDelta4ExtPointDataList(ExtPointList),
+               GetRawBoundDelta4ExtPolyDataList(ExtLineList),
+               GetRawBoundDelta4ExtPolyDataList(ExtAreaList)
+            };
 
             Bound rb = null;
             int idx = -1;
@@ -518,20 +367,6 @@ namespace GarminCore.Files {
 
             return rb;
          }
-
-         /// <summary>
-         /// <see cref="Bound"/> aller Objekte der Subdiv
-         /// </summary>
-         /// <returns></returns>
-         public Bound GetBound4Deltas(int coordbits, MapUnitPoint subdiv_center) {
-            Bound br = GetRawBound4Deltas();
-            return br != null ? new Bound(Longitude.RawUnits2MapUnits(br.Left, coordbits) + subdiv_center.Longitude,
-                                          Longitude.RawUnits2MapUnits(br.Right, coordbits) + subdiv_center.Longitude,
-                                          Longitude.RawUnits2MapUnits(br.Bottom, coordbits) + subdiv_center.Latitude,
-                                          Longitude.RawUnits2MapUnits(br.Top, coordbits) + subdiv_center.Latitude) :
-                                null;
-         }
-
 
          protected Bound GetRawBoundDelta4PointDataList(List<RawPointData> lst) {
             Bound rb = null;
@@ -573,12 +408,45 @@ namespace GarminCore.Files {
             return rb;
          }
 
+         /// <summary>
+         /// ermittelt die notwendige Größe des Speicherbereiches in der RGN-Datei
+         /// </summary>
+         public uint DataLength() {
+            uint len = 0;
+            for (int i = 0; i < PointList1.Count; i++)
+               len += PointList1[i].DataLength;
+            for (int i = 0; i < PointList2.Count; i++)
+               len += PointList2[i].DataLength;
+            for (int i = 0; i < LineList.Count; i++)
+               len += LineList[i].DataLength;
+            for (int i = 0; i < AreaList.Count; i++)
+               len += AreaList[i].DataLength;
+
+            if (len > 0) {          // sonst Subdiv ohne Inhalt
+               int types = 0;
+               if (PointList1.Count > 0)
+                  types++;
+               if (PointList2.Count > 0)
+                  types++;
+               if (LineList.Count > 0)
+                  types++;
+               if (AreaList.Count > 0)
+                  types++;
+               len += (uint)((types - 1) * 2);
+            }
+
+            return len;
+         }
+
          public override string ToString() {
-            return string.Format("PointList {0}, IdxPointList {1}, LineList {2}, AreaList {3}",
-                                 PointList.Count,
-                                 IdxPointList.Count,
+            return string.Format("Points1 {0}, Points2 {1}, Lines {2}, Areas {3}; Ext.: Points {4}, Lines {5}, Areas {6}",
+                                 PointList1.Count,
+                                 PointList2.Count,
                                  LineList.Count,
-                                 AreaList.Count);
+                                 AreaList.Count,
+                                 ExtPointList.Count,
+                                 ExtLineList.Count,
+                                 ExtAreaList.Count);
          }
 
       }
@@ -597,7 +465,7 @@ namespace GarminCore.Files {
        *             NICHT gespeichert.
        */
 
-      #region geografische Objkete
+      #region geografische Objekte
 
       /// <summary>
       /// Basisklasse für Punkte, Linien und Polygone
@@ -636,7 +504,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// Offset in der LBL-Datei (3 Byte)
          /// </summary>
-         public UInt32 LabelOffset {
+         public UInt32 LabelOffsetInLBL {
             get {
                return _LabelOffset;
             }
@@ -669,13 +537,23 @@ namespace GarminCore.Files {
          }
 
          /// <summary>
+         /// liefert den Text zum LabelOffset
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <returns></returns>
+         public virtual string GetText(StdFile_LBL lbl, bool clear = false) {
+            if (LabelOffsetInLBL > 0)
+               return lbl.GetText(LabelOffsetInLBL, clear);
+            return "";
+         }
+
+         /// <summary>
          /// Hilfsfunktion zum Vergleichen für die Sortierung (über Typ und Subtyp)
          /// </summary>
          /// <param name="obj"></param>
          /// <returns></returns>
          public int CompareTo(object obj) {
-            if (obj is GraphicObjectData) {
-               GraphicObjectData go = (GraphicObjectData)obj;
+            if (obj is GraphicObjectData go) {
                if (go == null)
                   return 1;
                if (Type == go.Type) {
@@ -699,7 +577,7 @@ namespace GarminCore.Files {
             sb.AppendFormat("Typ {0:x2}", Type);
             if (Subtype > 0)
                sb.AppendFormat(", Subtyp {0:x2}", Subtype);
-            sb.AppendFormat(", LabelOffset {0}", LabelOffset);
+            sb.AppendFormat(", LabelOffset {0}", LabelOffsetInLBL);
             sb.AppendFormat(", RawDeltaLongitude {0}", RawDeltaLongitude);
             sb.AppendFormat(", RawDeltaLatitude {0}", RawDeltaLatitude);
             return sb.ToString();
@@ -748,7 +626,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// Offset in der LBL-Datei (3 Byte); ungültig setzen mit UInt32.MaxValue
          /// </summary>
-         public new UInt32 LabelOffset {
+         public new UInt32 LabelOffsetInLBL {
             get {
                return HasLabel ?
                            _LabelOffset & 0x3fffff :  // ?
@@ -981,7 +859,7 @@ namespace GarminCore.Files {
             if (Subtype > 0)
                sb.AppendFormat(", Subtype {0:x2}", Subtype);
             if (HasLabel)
-               sb.AppendFormat(", LabelOffset {0}", LabelOffset);
+               sb.AppendFormat(", LabelOffset {0}", LabelOffsetInLBL);
             sb.AppendFormat(", RawDeltaLongitude {0}", RawDeltaLongitude);
             sb.AppendFormat(", RawDeltaLatitude {0}", RawDeltaLatitude);
             if (HasExtraBytes)
@@ -990,6 +868,7 @@ namespace GarminCore.Files {
          }
 
       }
+
 
       /// <summary>
       /// Rohdaten für Punkte 0x00..0x7F, ev. mit Subtype
@@ -1016,10 +895,11 @@ namespace GarminCore.Files {
                HasSubtype = value > 0;
             }
          }
+
          /// <summary>
-         /// Offset in der LBL-Datei (Bit 0..21, d.h. bis 0x3FFFFF möglich)
+         /// Text-Offset in der LBL-Datei oder Offset in der LBL-POI-Tabelle (Bit 0..21, d.h. bis 0x3FFFFF möglich)
          /// </summary>
-         public new UInt32 LabelOffset {
+         public new UInt32 LabelOffsetInLBL {
             get {
                return _LabelOffset & 0x3FFFFF;
             }
@@ -1027,6 +907,7 @@ namespace GarminCore.Files {
                _LabelOffset = value & 0x3FFFFF;
             }
          }
+
          /// <summary>
          /// es gibt einen Subtyp
          /// </summary>
@@ -1041,8 +922,9 @@ namespace GarminCore.Files {
                   _LabelOffset &= 0x7FFFFF;
             }
          }
+
          /// <summary>
-         /// Offset für POI
+         /// Offset für POI (auf einen "POIRecord")
          /// </summary>
          public bool IsPoiOffset {
             get {
@@ -1055,6 +937,7 @@ namespace GarminCore.Files {
                   _LabelOffset &= 0xBFFFFF;
             }
          }
+
          /// <summary>
          /// Größe des Speicherbereiches in der RGN-Datei
          /// </summary>
@@ -1081,9 +964,9 @@ namespace GarminCore.Files {
 
          public void Read(BinaryReaderWriter br) {
             _Type = br.ReadByte();
-            _LabelOffset = br.Read3U();
-            RawDeltaLongitude = br.ReadInt16();
-            RawDeltaLatitude = br.ReadInt16();
+            _LabelOffset = br.Read3AsUInt();
+            RawDeltaLongitude = br.Read2AsShort();
+            RawDeltaLatitude = br.Read2AsShort();
             if (HasSubtype)
                Subtype = br.ReadByte();
          }
@@ -1097,6 +980,27 @@ namespace GarminCore.Files {
                bw.Write(_Subtype);
          }
 
+         /// <summary>
+         /// liefert den ev. vorhandenen Text zum Punkt
+         /// </summary>
+         /// <param name="lbl"></param>
+         /// <param name="clear"></param>
+         /// <returns></returns>
+         public override string GetText(StdFile_LBL lbl, bool clear = false) {
+            if (!IsPoiOffset) {
+               if (LabelOffsetInLBL > 0)
+                  return lbl.GetText(LabelOffsetInLBL, clear);
+            } else { // dann aus der POI-Tabelle
+               if (lbl.PointPropertiesListOffsets.TryGetValue(LabelOffsetInLBL, out int poidx)) { // das sollte immer so sein
+                  if (poidx < lbl.PointPropertiesList.Count) {
+                     return lbl.GetText(lbl.PointPropertiesList[poidx].TextOffset, clear);
+                  }
+               }
+            }
+            return "";
+         }
+
+
          public static bool operator ==(RawPointData x, RawPointData y) {
             if (x._Type == y._Type &&
                 (!x.HasSubtype || (x._Subtype == y._Subtype)) &&
@@ -1108,7 +1012,7 @@ namespace GarminCore.Files {
          }
 
          public static bool operator !=(RawPointData x, RawPointData y) {
-            return x == y ? false : true;
+            return x != y;
          }
 
          public override string ToString() {
@@ -1116,12 +1020,6 @@ namespace GarminCore.Files {
          }
 
       }
-
-      /// <summary>
-      /// liefert den PostHeader-Datenbereich
-      /// </summary>
-      /// <returns></returns>
-      public DataBlock PostHeaderDataBlock { get; private set; }
 
       /// <summary>
       /// Typ 0..0x3f für Linien und 0..0x7f für Polygone, Subtyp 0
@@ -1151,7 +1049,7 @@ namespace GarminCore.Files {
          /// <summary>
          /// Offset in der LBL-Datei (Bit 0..21)
          /// </summary>
-         public new UInt32 LabelOffset {
+         public new UInt32 LabelOffsetInLBL {
             get {
                return _LabelOffset & 0x3FFFFF;
             }
@@ -1270,10 +1168,10 @@ namespace GarminCore.Files {
          /// <param name="br"></param>
          public void Read(BinaryReaderWriter br) {
             _Type = br.ReadByte();
-            _LabelOffset = br.Read3U();
-            RawDeltaLongitude = br.ReadInt16();
-            RawDeltaLatitude = br.ReadInt16();
-            int BitstreamLength = TwoByteLength ? br.ReadUInt16() : br.ReadByte();
+            _LabelOffset = br.Read3AsUInt();
+            RawDeltaLongitude = br.Read2AsShort();
+            RawDeltaLatitude = br.Read2AsShort();
+            int BitstreamLength = TwoByteLength ? br.Read2AsUShort() : br.ReadByte();
             bitstreamInfo = br.ReadByte();
             _bitstream = br.ReadBytes(BitstreamLength);  // _bitstreamInfo zählt nicht mit!
 
@@ -1321,6 +1219,20 @@ namespace GarminCore.Files {
          }
 
          /// <summary>
+         /// liefert eine Liste aller Punkte und setzt dabei auch die Liste <see cref="ExtraBit"/> entsprechend der aktuellen Daten in <see cref="_bitstream"/>
+         /// </summary>
+         /// <param name="coordbits"></param>
+         /// <param name="subdiv_center"></param>
+         /// <returns></returns>
+         public MapUnitPoint[] GetMapUnitPoints2(int coordbits, MapUnitPoint subdiv_center) {
+            List<GeoDataBitstream.RawPoint> rpt = GetRawPoints();
+            MapUnitPoint[] lst = new MapUnitPoint[rpt.Count];
+            for (int i = 0; i < rpt.Count; i++)
+               lst[i] = rpt[i].GetMapUnitPoint(coordbits, subdiv_center);
+            return lst;
+         }
+
+         /// <summary>
          /// setzt alle Punkte, gegebenenfalls auch die Liste <see cref="ExtraBit"/>
          /// </summary>
          /// <param name="pt">Punkte</param>
@@ -1331,8 +1243,7 @@ namespace GarminCore.Files {
             if (extra != null &&
                 extra.Count == pt.Count)
                ExtraBit.AddRange(extra);
-            int basebits4lon, basebits4lat;
-            byte[] tmp = GeoDataBitstream.SetRawPoints(pt, out basebits4lon, out basebits4lat, ExtraBit, false);
+            byte[] tmp = GeoDataBitstream.SetRawPoints(pt, out int basebits4lon, out int basebits4lat, ExtraBit, false);
             if (tmp != null) {
                _bitstream = tmp;
                bitstreamInfo = (byte)(basebits4lat << 4 | basebits4lon);
@@ -1389,7 +1300,7 @@ namespace GarminCore.Files {
          }
 
          public static bool operator !=(RawPolyData x, RawPolyData y) {
-            return x == y ? false : true;
+            return x != y;
          }
 
          /// <summary>
@@ -1407,10 +1318,14 @@ namespace GarminCore.Files {
             return rb;
          }
 
+
+
+
+
          public override string ToString() {
             return string.Format("Typ {0:x2}, LabelOffset {1}, LabelInNET {2}, RawDeltaLongitude {3}, RawDeltaLatitude {4}, WithExtraBit {5}, Datenbytes {6}",
                                  Type,
-                                 LabelOffset,
+                                 LabelOffsetInLBL,
                                  LabelInNET,
                                  RawDeltaLongitude,
                                  RawDeltaLatitude,
@@ -1419,6 +1334,7 @@ namespace GarminCore.Files {
          }
 
       }
+
 
       /// <summary>
       /// Daten der erweiterten Punkte, Typ >=0x100, Subtyp 0..0x1f
@@ -1437,11 +1353,11 @@ namespace GarminCore.Files {
             _Type = br.ReadByte();
             _Subtype = br.ReadByte();
 
-            RawDeltaLongitude = br.ReadInt16();
-            RawDeltaLatitude = br.ReadInt16();
+            RawDeltaLongitude = br.Read2AsShort();
+            RawDeltaLatitude = br.Read2AsShort();
 
             if (HasLabel)
-               _LabelOffset = br.Read3U();
+               _LabelOffset = br.Read3AsUInt();
 
             ExtraBytes = ReadExtraBytes(br);
 
@@ -1502,7 +1418,7 @@ namespace GarminCore.Files {
          }
 
          public static bool operator !=(ExtRawPointData x, ExtRawPointData y) {
-            return x == y ? false : true;
+            return x != y;
          }
       }
 
@@ -1575,8 +1491,8 @@ namespace GarminCore.Files {
             _Type = br.ReadByte();
             _Subtype = br.ReadByte();
 
-            RawDeltaLongitude = br.ReadInt16();
-            RawDeltaLatitude = br.ReadInt16();
+            RawDeltaLongitude = br.Read2AsShort();
+            RawDeltaLatitude = br.Read2AsShort();
 
             /*
 		if (blen >= 0x7f) {
@@ -1605,7 +1521,7 @@ namespace GarminCore.Files {
             _bitstream = br.ReadBytes((int)BitstreamLength - 1);     // _bitstreamInfo ist in BitstreamLength eingeschlossen!
 
             if (HasLabel)
-               _LabelOffset = br.Read3U();
+               _LabelOffset = br.Read3AsUInt();
 
             if (HasUnknownFlag)
                Debug.WriteLine("ExtPolyData mit unbekanntem Flag");
@@ -1706,8 +1622,7 @@ namespace GarminCore.Files {
          /// <param name="pt">Punkte</param>
          /// <returns></returns>
          bool SetRawPoints(IList<GeoDataBitstream.RawPoint> pt) {
-            int basebits4lon, basebits4lat;
-            byte[] tmp = GeoDataBitstream.SetRawPoints(pt, out basebits4lon, out basebits4lat, null, true);
+            byte[] tmp = GeoDataBitstream.SetRawPoints(pt, out int basebits4lon, out int basebits4lat, null, true);
             if (tmp != null) {
                _bitstream = tmp;
                bitstreamInfo = (byte)(basebits4lat << 4 | basebits4lon);
@@ -1763,7 +1678,7 @@ namespace GarminCore.Files {
          }
 
          public static bool operator !=(ExtRawPolyData x, ExtRawPolyData y) {
-            return x == y ? false : true;
+            return x != y;
          }
 
          /// <summary>
@@ -1788,6 +1703,13 @@ namespace GarminCore.Files {
       }
 
       #endregion
+
+      /// <summary>
+      /// liefert den PostHeader-Datenbereich
+      /// </summary>
+      /// <returns></returns>
+      public DataBlock PostHeaderDataBlock { get; private set; }
+
 
       /// <summary>
       /// zur De- und Encodierung der geografischen Daten für Polylines und Polygones als Bitstream
@@ -2096,9 +2018,7 @@ namespace GarminCore.Files {
             List<RawPoint> rawpoints = new List<RawPoint>();
 
             if (bitstream != null && bitstream.Length > 0) {
-               SignType lon_sign;
-               SignType lat_sign;
-               int bitstreampos = ReadBitstreamSigns(ref bitstream, out lon_sign, out lat_sign);
+               int bitstreampos = ReadBitstreamSigns(ref bitstream, out SignType lon_sign, out SignType lat_sign);
 
                /* MKGMAP probiert in einer Funktion makeBitStream() ausgehend von theoretisch nötigen Werten die besten Werte für basebits4lon / basebits4lat aus.
                * Wegene des Spezialwertes '-0' können kleinere Werte u.U. zu einem kürzeren Bitstream führen.
@@ -2401,9 +2321,7 @@ namespace GarminCore.Files {
                   sb.Append((bitstream[i] & 0x80) > 0 ? "1" : "0");
                }
 
-               SignType lon_sign;
-               SignType lat_sign;
-               int insertpos = ReadBitstreamSigns(ref bitstream, out lon_sign, out lat_sign);
+               int insertpos = ReadBitstreamSigns(ref bitstream, out SignType lon_sign, out SignType lat_sign);
                sb.Insert(insertpos++, ":");
 
                if (extrabit) {
@@ -2466,9 +2384,7 @@ namespace GarminCore.Files {
                 pt.Count < 2) // zu wenig Punkte
                return null;
 
-            int minlon, maxlon, minlat, maxlat;
-            SignType lon_sign, lat_sign;
-            List<RawPoint> delta = GetDeltaAndSignAndMinMax(pt, out lon_sign, out lat_sign, out minlon, out maxlon, out minlat, out maxlat);
+            List<RawPoint> delta = GetDeltaAndSignAndMinMax(pt, out SignType lon_sign, out SignType lat_sign, out int minlon, out int maxlon, out int minlat, out int maxlat);
 
             // max. nötige Bitanzahl (ohne Vorzeichen) bestimmen
             int bits4lon = Math.Max(BitsNeeded(minlon), BitsNeeded(maxlon));
@@ -2525,8 +2441,7 @@ namespace GarminCore.Files {
                   SimpleTest(1500, 0);
 
             } catch (Exception ex) {
-
-               throw;
+               throw new Exception(ex.Message);
             }
 
          }
@@ -2546,8 +2461,7 @@ namespace GarminCore.Files {
          }
 
          static void SimpleTest(List<RawPoint> orgpt) {
-            int basebits4lon_org, basebits4lat_org;
-            byte[] encoded = SetRawPoints(orgpt, out basebits4lon_org, out basebits4lat_org, null, false);
+            byte[] encoded = SetRawPoints(orgpt, out int basebits4lon_org, out int basebits4lat_org, null, false);
             List<RawPoint> decodedpt = GetRawPoints(ref encoded, basebits4lon_org, basebits4lat_org, orgpt[0].RawUnitsLon, orgpt[0].RawUnitsLat, null, false);
 
             // Vergleich
@@ -2593,7 +2507,7 @@ namespace GarminCore.Files {
 
 
       /// <summary>
-      /// übergeordnete TRE-Datei
+      /// übergeordnete TRE-Datei (im Konstruktor gesetzt)
       /// </summary>
       public StdFile_TRE TREFile { get; private set; }
 
@@ -2601,6 +2515,7 @@ namespace GarminCore.Files {
       /// Liste aller Subdivs mit ihren Daten
       /// </summary>
       public List<SubdivData> SubdivList { get; private set; }
+
 
 
       public StdFile_RGN(StdFile_TRE tre)
@@ -2639,7 +2554,7 @@ namespace GarminCore.Files {
          Filesections.AddSection((int)InternalFileSections.ExtAreasBlock, new DataBlock(ExtAreasBlock));
          Filesections.AddSection((int)InternalFileSections.ExtLinesBlock, new DataBlock(ExtLinesBlock));
          Filesections.AddSection((int)InternalFileSections.ExtPointsBlock, new DataBlock(ExtPointsBlock));
-         Filesections.AddSection((int)InternalFileSections.UnknownBlock_0x71, new DataBlock(UnknownBlock_0x71));
+         //Filesections.AddSection((int)InternalFileSections.UnknownBlock_0x71, new DataBlock(UnknownBlock_0x71));
 
          // GapOffset und DataOffset setzen
          SetSpecialOffsetsFromSections((int)InternalFileSections.PostHeaderData);
@@ -2653,9 +2568,10 @@ namespace GarminCore.Files {
          Filesections.ReadSections(br);
       }
 
+      /// <summary>
+      /// wird bei jedem Read(), dass nicht nur ein RawRead ist, aufgerufen
+      /// </summary>
       protected override void DecodeSections() {
-         SubdivList.Clear();
-
          if (Locked != 0) {
             RawRead = true;
             return;
@@ -2667,6 +2583,9 @@ namespace GarminCore.Files {
 
          if (TREFile == null)
             throw new Exception("Ohne dazugehörende TRE-Datei können keine Subdiv-Infos gelesen werden.");
+
+         while (SubdivList.Count < TREFile.SubdivInfoList.Count)    // ev. Standardliste mit null für jede Subdiv erzeugen
+            SubdivList.Add(null);
 
          // alle Subdiv-Daten "interpretieren"
          List<StdFile_TRE.SubdivInfoBasic> subdivinfoList = TREFile.SubdivInfoList;
@@ -2683,97 +2602,92 @@ namespace GarminCore.Files {
 
             tmpblrs = Filesections.GetPosition(filesectiontype);
             if (tmpblrs != null && tmpblrs.Length > 0) {
-               tmpblrs = new DataBlockWithRecordsize(tmpblrs);
-               tmpblrs.Offset = 0;
+               tmpblrs = new DataBlockWithRecordsize(tmpblrs) {
+                  Offset = 0
+               };
                Decode_SubdivContentBlock(Filesections.GetSectionDataReader(filesectiontype), tmpblrs);
                Filesections.RemoveSection(filesectiontype);
             }
-         } else
-            subdivinfoList = new List<StdFile_TRE.SubdivInfoBasic>();
+         } //else subdivinfoList = new List<StdFile_TRE.SubdivInfoBasic>();
          // throw new Exception("Die TRE-Datei enthält keine Subdiv-Infos.");
 
          // alle Ext-Daten "interpretieren"
          filesectiontype = (int)InternalFileSections.ExtAreasBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             Decode_ExtAreasBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
             Filesections.RemoveSection(filesectiontype);
          }
 
          filesectiontype = (int)InternalFileSections.ExtLinesBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             Decode_ExtLinesBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
             Filesections.RemoveSection(filesectiontype);
          }
 
          filesectiontype = (int)InternalFileSections.ExtPointsBlock;
          if (Filesections.GetLength(filesectiontype) > 0) {
-            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype));
-            bl.Offset = 0;
+            DataBlockWithRecordsize bl = new DataBlockWithRecordsize(Filesections.GetPosition(filesectiontype)) {
+               Offset = 0
+            };
             Decode_ExtPointsBlock(Filesections.GetSectionDataReader(filesectiontype), bl);
             Filesections.RemoveSection(filesectiontype);
          }
-
       }
 
-      public override void Encode_Sections() {
-         SetData2Filesection((int)InternalFileSections.SubdivContentBlock, true);
-         if (Headerlength > 0x1D) {    // erweiterten Objekte in der RGN-Datei speichern
-            SetData2Filesection((int)InternalFileSections.ExtAreasBlock, true);
-            SetData2Filesection((int)InternalFileSections.ExtLinesBlock, true);
-            SetData2Filesection((int)InternalFileSections.ExtPointsBlock, true);
-         }
-      }
+      /// <summary>
+      /// Liste der gültigen Subdiv-Index bei unvollständigem Einlesen
+      /// </summary>
+      int[] validsubdividx = new int[0];
 
-      protected override void Encode_Filesection(BinaryReaderWriter bw, int filesectiontype) {
-         switch ((InternalFileSections)filesectiontype) {
-            case InternalFileSections.SubdivContentBlock:
-               Encode_SubdivContentBlock(bw);
-               break;
+      /// <summary>
+      /// erzeugt eine (neue) Subdiv-Liste mit den Daten der Subdivs
+      /// <para>Für die nicht gewünschten Subdivs steht null in der Liste.</para>
+      /// <para>NICHT multithreadsicher!</para>
+      /// </summary>
+      /// <param name="br"></param>
+      /// <param name="subdividxlst">Indexe der gewünschtenSubdivs oder null (alles einlesen)</param>
+      /// <param name="tre"><see cref="TREFile"/> kann, wenn ungleich null, neu gesetzt werden</param>
+      public void ReadOnlySpecialSubdivs(BinaryReaderWriter br, IList<int> subdividxlst, StdFile_TRE tre = null) {
+         if (subdividxlst != null) {
+            List<int> tmp = new List<int>();
+            foreach (var item in subdividxlst)
+               if (SubdivList.Count <= item ||
+                   SubdivList[item] == null)    // noch nicht eingelesen
+                  tmp.Add(item);
+            validsubdividx = new int[tmp.Count];
+            tmp.CopyTo(validsubdividx, 0);
+         } else
+            validsubdividx = null;
 
-            case InternalFileSections.ExtAreasBlock:
-               Encode_ExtAreasBlock(bw);
-               break;
+         if (tre != null)
+            TREFile = tre;
 
-            case InternalFileSections.ExtLinesBlock:
-               Encode_ExtLinesBlock(bw);
-               break;
+         Read(br);      // löst DecodeSections() aus
 
-            case InternalFileSections.ExtPointsBlock:
-               Encode_ExtPointsBlock(bw);
-               break;
-
-            case InternalFileSections.UnknownBlock_0x71:
-
-               break;
-         }
-      }
-
-      public override void SetSectionsAlign() {
-         // durch Pseudo-Offsets die Reihenfolge der Abschnitte festlegen
-         uint pos = 0;
-         Filesections.SetOffset((int)InternalFileSections.PostHeaderData, pos++);
-         Filesections.SetOffset((int)InternalFileSections.SubdivContentBlock, pos++);
-         if (Headerlength > 0x1D) {
-            Filesections.SetOffset((int)InternalFileSections.ExtAreasBlock, pos++);
-            Filesections.SetOffset((int)InternalFileSections.ExtLinesBlock, pos++);
-            Filesections.SetOffset((int)InternalFileSections.ExtPointsBlock, pos++);
-            Filesections.SetOffset((int)InternalFileSections.UnknownBlock_0x71, pos++);
-         }
-
-         Filesections.AdjustSections(DataOffset);     // lückenlos ausrichten
-
-         SubdivContentBlock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.SubdivContentBlock));
-         ExtAreasBlock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.ExtAreasBlock));
-         ExtLinesBlock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.ExtLinesBlock));
-         ExtPointsBlock = new DataBlock(Filesections.GetPosition((int)InternalFileSections.ExtPointsBlock));
-         UnknownBlock_0x71 = new DataBlock(Filesections.GetPosition((int)InternalFileSections.UnknownBlock_0x71));
+         validsubdividx = null;
       }
 
       #region Decodierung der Datenblöcke
+
+      /// <summary>
+      /// liefert den nächsten gültigen Index, der in der <see cref="SubdivList"/> nicht null ergibt
+      /// </summary>
+      /// <param name="idx"></param>
+      /// <param name="subdivIdx"></param>
+      /// <returns>kleiner 0, wenn kein gültiger Index mehr ex.</returns>
+      int getNextValidIdx(int idx, int[] subdivIdx) {
+         while (idx + 1 < subdivIdx.Length &&
+                SubdivList[subdivIdx[++idx]] == null) ;
+         return idx < subdivIdx.Length &&
+                subdivIdx[idx] < SubdivList.Count &&
+                SubdivList[subdivIdx[idx]] != null ? idx : -1;
+      }
 
       void Decode_SubdivContentBlock(BinaryReaderWriter br, DataBlock src) { //, bool selftest = false) {
          if (br != null) {
@@ -2800,7 +2714,24 @@ namespace GarminCore.Files {
 
                extdata[i] = subdivinfoList[i].Data.Length | ((uint)subdivinfoList[i].Content << 24);
             }
-            SubdivList = br.ReadArray<SubdivData>(src, extdata);
+            if (validsubdividx == null ||
+                validsubdividx.Length == 0)   // Standard -> alles einlesen
+               SubdivList = br.ReadArray<SubdivData>(src, extdata);
+            else {
+               while (SubdivList.Count < subdivinfoList.Count) // ev. Standardliste mit null für jede Subdiv erzeugen
+                  SubdivList.Add(null);
+
+               foreach (int idx in validsubdividx) { // die gewünschten Subdivs einlesen
+                  if (SubdivList[idx] == null) {         // tatsächlich noch nicht eingelesen
+                     List<SubdivData> lst;
+                     if (subdivinfoList[idx].Data.Length > 0)
+                        lst = br.ReadArray<SubdivData>(subdivinfoList[idx].Data, new object[] { extdata[idx] });
+                     else
+                        lst = new List<SubdivData>() { new SubdivData() }; // keine Daten -> leere Subdiv
+                     SubdivList[idx] = lst[0];
+                  }
+               }
+            }
          }
       }
 
@@ -2817,30 +2748,47 @@ namespace GarminCore.Files {
          //for (int i = 0; i < SubdivIdx.Length; i++)  // 1-basierten Index in 0-basierten Index umwandeln
          //   SubdivIdx[i]--;
 
-         int idx = 0;
-         int subdividx = SubdivIdx[idx];
-         List<ExtRawPolyData> lst = SubdivList[subdividx].ExtAreaList;     // Polygonliste des 1. Subdiv's, das erweiterte Polygone enthält
-         lst.Clear();
-         DataBlock tre_block = TREFile.ExtAreaBlock4Subdiv[subdividx];
-         long blockend = tre_block.Offset + tre_block.Length - startadr;
+         if (br != null) {
+            int idx = -1;
+            int subdividx;
+            DataBlock tre_block;
+            long blockend = br.Position; // Blockende simulieren
+            List<ExtRawPolyData> lst = null;
 
-         if (br != null)
             while (br.Position < endpos) {
-               if (blockend == br.Position) {          // alles für die aktuelle Subdiv eingelesen, aber noch weitere Daten vorhanden
+               if (br.Position >= blockend) {          // alles für die aktuelle Subdiv eingelesen
+                  if (br.Position > blockend)
+                     throw new Exception("TRE-Blockgröße beim Einlesen der ExtPolyData (Flächen) um " + (br.Position - blockend).ToString() + " Bytes überschritten");
                   if (idx > SubdivIdx.Length - 2 ||
                       SubdivIdx[idx + 1] > SubdivList.Count - 1) {
                      Debug.WriteLine("Ev. Fehler beim Einlesen der ExtPolyData (Flächen)");  // Bei einer Originalkarte wurde beobachtet, dass Daten für eine nicht ex. Subdiv enthalten waren.
                      break;
                   }
 
-                  subdividx = SubdivIdx[++idx];
+                  // Vorbereitung für nächste Subdiv
+                  idx = getNextValidIdx(idx, SubdivIdx);       //subdividx = SubdivIdx[++idx];
+                  if (idx < 0)   // keine Subdiv mehr
+                     break;
+                  subdividx = SubdivIdx[idx];
+                  if (SubdivList[subdividx] == null)
+                     throw new Exception("Decode_ExtAreasBlock: Subdiv " + subdividx.ToString() + " noch nicht erzeugt.");
+                  tre_block = TREFile.ExtAreaBlock4Subdiv[subdividx];
+                  br.Seek(tre_block.Offset - startadr);
+                  blockend = tre_block.Offset + tre_block.Length - startadr;
+
+                  if (validsubdividx != null &&
+                      validsubdividx.Length > 0 &&
+                      !validsubdividx.Contains(subdividx)) {
+                     br.Seek(blockend);                     // Daten dieser Subdiv überspringen
+                     continue;
+                  }
+
                   lst = SubdivList[subdividx].ExtAreaList;
                   lst.Clear();
-                  tre_block = TREFile.ExtAreaBlock4Subdiv[subdividx];
-                  blockend = tre_block.Offset + tre_block.Length - startadr;
                }
                lst.Add(new ExtRawPolyData(br));
             }
+         }
       }
 
       void Decode_ExtLinesBlock(BinaryReaderWriter br, DataBlock src) {
@@ -2852,34 +2800,47 @@ namespace GarminCore.Files {
          int[] SubdivIdx = new int[TREFile.ExtLineBlock4Subdiv.Count];
          TREFile.ExtLineBlock4Subdiv.Keys.CopyTo(SubdivIdx, 0);
 
-         // ??? unklar, ob das IMMER 1-basiert ist ???
-         //for (int i = 0; i < SubdivIdx.Length; i++)  // 1-basierten Index in 0-basierten Index umwandeln
-         //   SubdivIdx[i]--;
+         if (br != null) {
+            int idx = -1;
+            int subdividx;
+            DataBlock tre_block;
+            long blockend = br.Position; // Blockende simulieren
+            List<ExtRawPolyData> lst = null;
 
-         int idx = 0;
-         int subdividx = SubdivIdx[idx];
-         List<ExtRawPolyData> lst = SubdivList[subdividx].ExtLineList;     // Polylineliste des 1. Subdiv's, das erweiterte Polygone enthält
-         lst.Clear();
-         DataBlock tre_block = TREFile.ExtLineBlock4Subdiv[subdividx];
-         long blockend = tre_block.Offset + tre_block.Length - startadr;
-
-         if (br != null)
             while (br.Position < endpos) {
-               if (blockend == br.Position) {          // alles für die aktuelle Subdiv eingelesen, aber noch weitere Daten vorhanden
+               if (br.Position >= blockend) {
+                  if (br.Position > blockend)
+                     throw new Exception("TRE-Blockgröße beim Einlesen der ExtPolyData (Linien) um " + (br.Position - blockend).ToString() + " Bytes überschritten");
                   if (idx > SubdivIdx.Length - 2 ||
                       SubdivIdx[idx + 1] > SubdivList.Count - 1) {
                      Debug.WriteLine("Ev. Fehler beim Einlesen der ExtPolyData (Linien)");  // Bei einer Originalkarte wurde beobachtet, dass Daten für eine nicht ex. Subdiv enthalten waren.
                      break;
                   }
 
-                  subdividx = SubdivIdx[++idx]; // Index ist 1-basiert
+                  // Vorbereitung für nächste Subdiv
+                  idx = getNextValidIdx(idx, SubdivIdx);       //subdividx = SubdivIdx[++idx];
+                  if (idx < 0)   // keine Subdiv mehr
+                     break;
+                  subdividx = SubdivIdx[idx];
+                  if (SubdivList[subdividx] == null)
+                     throw new Exception("Decode_ExtLinesBlock: Subdiv " + subdividx.ToString() + " noch nicht erzeugt.");
+                  tre_block = TREFile.ExtLineBlock4Subdiv[subdividx];
+                  br.Seek(tre_block.Offset - startadr);
+                  blockend = tre_block.Offset + tre_block.Length - startadr;
+
+                  if (validsubdividx != null &&
+                      validsubdividx.Length > 0 &&
+                      !validsubdividx.Contains(subdividx)) {
+                     br.Seek(blockend);                     // Daten dieser Subdiv überspringen
+                     continue;
+                  }
+
                   lst = SubdivList[subdividx].ExtLineList;
                   lst.Clear();
-                  tre_block = TREFile.ExtLineBlock4Subdiv[subdividx];
-                  blockend = tre_block.Offset + tre_block.Length - startadr;
                }
                lst.Add(new ExtRawPolyData(br));
             }
+         }
       }
 
       void Decode_ExtPointsBlock(BinaryReaderWriter br, DataBlock src) {
@@ -2887,228 +2848,153 @@ namespace GarminCore.Files {
          long endpos = src.Offset + src.Length;
          br.Seek(startadr);
 
-         // Indexliste aller Subdiv's aus der TRE-Datei erzeugen/kopieren, die erweiterte Polygone enthalten
+         // Indexliste aller Subdiv's aus der TRE-Datei erzeugen/kopieren, die erweiterte Punkte enthalten
          int[] SubdivIdx = new int[TREFile.ExtPointBlock4Subdiv.Count];
          TREFile.ExtPointBlock4Subdiv.Keys.CopyTo(SubdivIdx, 0);
 
-         // ??? unklar, ob das IMMER 1-basiert ist ???
-         //for (int i = 0; i < SubdivIdx.Length; i++)  // 1-basierten Index in 0-basierten Index umwandeln
-         //   SubdivIdx[i]--;
+         if (br != null) {
+            int idx = -1;
+            int subdividx;
+            DataBlock tre_block;
+            long blockend = br.Position; // Blockende simulieren
+            List<ExtRawPointData> lst = null;
 
-         List<ExtRawPointData> lst = null;
-         DataBlock tre_block = null;
-         int idx = -1;
-         long blockend = 0;
-         if (br != null)
             while (br.Position < endpos) {
-               if (br.Position > blockend - 6) {      // min. 6 Byte sind für einen Punkt nötig; jetzt neue Subdiv
-                  if (br.Position < blockend)
-                     Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Ende des Subdiv-Bereiches nicht erreicht. Noch " + (blockend - br.Position).ToString() + " Bytes übrig.");
-                  else if (blockend < br.Position)
-                     Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Ende des Subdiv-Bereiches um " + (br.Position - blockend).ToString() + " Bytes überschritten.");
-                  idx++;
-                  if (SubdivIdx[idx] >= SubdivList.Count) {
-                     Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Subdiv " + SubdivIdx[idx].ToString() + " existiert nicht.");
-                     return;
+               //if (br.Position > blockend - 6) {      // min. 6 Byte sind für einen Punkt nötig; jetzt neue Subdiv
+               if (br.Position >= blockend) {
+                  if (br.Position > blockend)
+                     throw new Exception("TRE-Blockgröße beim Einlesen der ExtPolyData (Points) um " + (br.Position - blockend).ToString() + " Bytes überschritten");
+                  //if (br.Position < blockend)
+                  //   Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Ende des Subdiv-Bereiches nicht erreicht. Noch " + (blockend - br.Position).ToString() + " Bytes übrig.");
+                  //else if (blockend < br.Position)
+                  //   Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Ende des Subdiv-Bereiches um " + (br.Position - blockend).ToString() + " Bytes überschritten.");
+
+                  // Vorbereitung für nächste Subdiv
+                  idx = getNextValidIdx(idx, SubdivIdx);       //subdividx = SubdivIdx[++idx];
+                  if (idx < 0)   // keine Subdiv mehr
+                     break;
+                  subdividx = SubdivIdx[idx];
+                  if (SubdivList[subdividx] == null)
+                     throw new Exception("Decode_ExtPointsBlock: Subdiv " + subdividx.ToString() + " noch nicht erzeugt.");
+                  tre_block = TREFile.ExtPointBlock4Subdiv[subdividx];
+                  br.Seek(tre_block.Offset - startadr);
+                  blockend = tre_block.Offset + tre_block.Length - startadr;
+
+                  if (validsubdividx != null &&
+                      validsubdividx.Length > 0 &&
+                      !validsubdividx.Contains(subdividx)) {
+                     br.Seek(blockend);                     // Daten dieser Subdiv überspringen
+                     continue;
                   }
 
-                  lst = SubdivList[SubdivIdx[idx]].ExtPointList;
+                  lst = SubdivList[subdividx].ExtPointList;
                   lst.Clear();
-                  tre_block = TREFile.ExtPointBlock4Subdiv[SubdivIdx[idx]];
-                  blockend = tre_block.Offset + tre_block.Length - startadr;
-                  br.Seek(tre_block.Offset);          // sollte eigentlich nicht nötig sein, aber sicher ist sicher
                }
                lst.Add(new ExtRawPointData(br));
 
-               if (lst[lst.Count - 1].HasUnknownFlag) {
-                  if (lst[lst.Count - 1].UnknownKey[0] == 0x41) {
+               //if (lst[lst.Count - 1].HasUnknownFlag) {
+               //   if (lst[lst.Count - 1].UnknownKey[0] == 0x41) {
 
-                  } else if (lst[lst.Count - 1].UnknownKey[0] == 0x03 &&
-                             lst[lst.Count - 1].UnknownKey[2] == 0x5A) {
+               //   } else if (lst[lst.Count - 1].UnknownKey[0] == 0x03 &&
+               //              lst[lst.Count - 1].UnknownKey[2] == 0x5A) {
 
-                  } else {
+               //   } else {
 
-                     Debug.WriteLine(string.Format("{0} {1}", tre_block, br));
-                     br.Seek(tre_block.Offset);
-                     Debug.WriteLine(Helper.DumpMemory(br.ToArray(), 0, (int)tre_block.Length, 16));
+               //      Debug.WriteLine(string.Format("{0} {1}", tre_block, br));
+               //      br.Seek(tre_block.Offset);
+               //      Debug.WriteLine(Helper.DumpMemory(br.ToArray(), 0, (int)tre_block.Length, 16));
 
-                     br.Seek(blockend);
+               //      br.Seek(blockend);
 
-                  }
-               }
+               //   }
+               //}
             }
+         }
       }
+
+      //void Decode_ExtPointsBlock1(BinaryReaderWriter br, DataBlock src) {
+      //   long startadr = src.Offset;
+      //   long endpos = src.Offset + src.Length;
+      //   br.Seek(startadr);
+
+      //   // Indexliste aller Subdiv's aus der TRE-Datei erzeugen/kopieren, die erweiterte Punkte enthalten
+      //   int[] SubdivIdx = new int[TREFile.ExtPointBlock4Subdiv.Count];
+      //   TREFile.ExtPointBlock4Subdiv.Keys.CopyTo(SubdivIdx, 0);
+
+
+      //   List<ExtRawPointData> lst = null;
+      //   DataBlock tre_block = null;
+      //   int idx = -1;
+      //   long blockend = 0;
+      //   if (br != null)
+      //      while (br.Position < endpos) {
+      //         if (br.Position > blockend - 6) {      // min. 6 Byte sind für einen Punkt nötig; jetzt neue Subdiv
+      //            if (br.Position < blockend)
+      //               Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Ende des Subdiv-Bereiches nicht erreicht. Noch " + (blockend - br.Position).ToString() + " Bytes übrig.");
+      //            else if (blockend < br.Position)
+      //               Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Ende des Subdiv-Bereiches um " + (br.Position - blockend).ToString() + " Bytes überschritten.");
+
+      //            //idx++;
+      //            idx = getNextValidIdx(idx, SubdivIdx);
+      //            if (idx < 0)
+      //               break;
+      //            if (SubdivIdx[idx] >= SubdivList.Count) {
+      //               Debug.WriteLine("Fehler beim Einlesen der ExtPointData: Subdiv " + SubdivIdx[idx].ToString() + " existiert nicht.");
+      //               return;
+      //            }
+
+      //            lst = SubdivList[SubdivIdx[idx]].ExtPointList;
+      //            lst.Clear();
+      //            tre_block = TREFile.ExtPointBlock4Subdiv[SubdivIdx[idx]];
+      //            blockend = tre_block.Offset + tre_block.Length - startadr;
+      //            br.Seek(tre_block.Offset - startadr);
+      //         }
+      //         lst.Add(new ExtRawPointData(br));
+      //         //new ExtRawPointData(br);
+
+      //         //if (lst[lst.Count - 1].HasUnknownFlag) {
+      //         //   if (lst[lst.Count - 1].UnknownKey[0] == 0x41) {
+
+      //         //   } else if (lst[lst.Count - 1].UnknownKey[0] == 0x03 &&
+      //         //              lst[lst.Count - 1].UnknownKey[2] == 0x5A) {
+
+      //         //   } else {
+
+      //         //      Debug.WriteLine(string.Format("{0} {1}", tre_block, br));
+      //         //      br.Seek(tre_block.Offset);
+      //         //      Debug.WriteLine(Helper.DumpMemory(br.ToArray(), 0, (int)tre_block.Length, 16));
+
+      //         //      br.Seek(blockend);
+
+      //         //   }
+      //         //}
+      //      }
+      //}
 
       #endregion
 
-      #region Encodierung der Datenblöcke
+      public override void Encode_Sections() { }
+      protected override void Encode_Filesection(BinaryReaderWriter bw, int filesectiontype) { }
+      public override void SetSectionsAlign() { }
+      protected override void Encode_Header(BinaryReaderWriter bw) { }
+
 
       /// <summary>
-      /// schreibt den Subdiv-Block und korrigiert auch die TRE-SubdivInfo-Daten
+      /// liefert einen Punkt aus einer Subdiv (<see cref="SubdivData.PointList1"/>) (oder null)
+      /// <para>Achtung: Vgl. auf null mit ReferenceEquals()</para>
       /// </summary>
-      /// <param name="bw"></param>
-      void Encode_SubdivContentBlock(BinaryReaderWriter bw) {
-         if (bw != null) {
-            List<StdFile_TRE.SubdivInfoBasic> subdivinfoList = TREFile.SubdivInfoList;
-            uint offset = 0;
-            if (subdivinfoList != null &&
-                subdivinfoList.Count == SubdivList.Count)
-
-               for (int i = 0; i < SubdivList.Count; i++) {
-                  long startadr = bw.Position;
-                  SubdivList[i].Write(bw);
-                  uint sdlength = (uint)(bw.Position - startadr);
-
-                  subdivinfoList[i].Data.Offset = offset;
-                  offset += sdlength;
-                  subdivinfoList[i].Data.Length = sdlength;
-                  subdivinfoList[i].Content = (SubdivList[i].PointList.Count > 0 ?
-                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.poi :
-                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing) |
-                                              (SubdivList[i].IdxPointList.Count > 0 ?
-                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.idxpoi :
-                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing) |
-                                              (SubdivList[i].AreaList.Count > 0 ?
-                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.area :
-                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing) |
-                                              (SubdivList[i].LineList.Count > 0 ?
-                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.line :
-                                                      StdFile_TRE.SubdivInfoBasic.SubdivContent.nothing);
-               }
-         }
+      /// <param name="subdividx"></param>
+      /// <param name="ptidx"></param>
+      /// <returns></returns>
+      public RawPointData GetPoint1(int subdividx, int ptidx) {
+         if (subdividx < SubdivList.Count &&
+             SubdivList[subdividx] != null &&
+             ptidx < SubdivList[subdividx].PointList1.Count)
+            return SubdivList[subdividx].PointList1[ptidx];
+         return null;
       }
 
-      /// <summary>
-      /// schreibt den Datenblock und erzeugt die zugehörigen TRE-Daten neu
-      /// </summary>
-      /// <param name="bw"></param>
-      void Encode_ExtAreasBlock(BinaryReaderWriter bw) {
-         TREFile.ExtAreaBlock4Subdiv.Clear();     // Offsets in der TRE-Datei neu bilden
 
-         uint startadr = (uint)bw.Position;
-         for (int sd = 0; sd < SubdivList.Count; sd++) {
-            List<ExtRawPolyData> extpolys = SubdivList[sd].ExtAreaList;
-            if (extpolys.Count > 0) {
-               DataBlock block = new DataBlock((uint)bw.Position, 0);
-               foreach (ExtRawPolyData poly in extpolys) {
-                  Bound rbound = poly.GetRawBoundDelta();
-                  if (rbound.Width > 0 && rbound.Height > 0) // sonst ist die Darstellung sinnlos
-                     poly.Write(bw);
-               }
-               block.Length = (uint)bw.Position - block.Offset;
-               block.Offset -= startadr;
-               TREFile.ExtAreaBlock4Subdiv.Add(sd, block);
-            }
-         }
-      }
-
-      /// <summary>
-      /// schreibt den Datenblock und erzeugt die zugehörigen TRE-Daten neu
-      /// </summary>
-      /// <param name="bw"></param>
-      void Encode_ExtLinesBlock(BinaryReaderWriter bw) {
-         TREFile.ExtLineBlock4Subdiv.Clear();     // Offsets in der TRE-Datei neu bilden
-
-         uint startadr = (uint)bw.Position;
-         for (int sd = 0; sd < SubdivList.Count; sd++) {
-            List<ExtRawPolyData> extpolys = SubdivList[sd].ExtLineList;
-            if (extpolys.Count > 0) {
-               DataBlock block = new DataBlock((uint)bw.Position, 0);
-               foreach (ExtRawPolyData poly in extpolys) {
-                  Bound rbound = poly.GetRawBoundDelta();
-                  if (rbound.Width > 0 && rbound.Height > 0) // sonst ist die Darstellung sinnlos
-                     poly.Write(bw);
-               }
-               block.Length = (uint)bw.Position - block.Offset;
-               block.Offset -= startadr;
-               TREFile.ExtLineBlock4Subdiv.Add(sd, block);
-            }
-         }
-      }
-
-      /// <summary>
-      /// schreibt den Datenblock und erzeugt die zugehörigen TRE-Daten neu
-      /// </summary>
-      /// <param name="bw"></param>
-      void Encode_ExtPointsBlock(BinaryReaderWriter bw) {
-         TREFile.ExtPointBlock4Subdiv.Clear();     // Offsets in der TRE-Datei neu bilden
-
-         uint startadr = (uint)bw.Position;
-         for (int sd = 0; sd < SubdivList.Count; sd++) {
-            List<ExtRawPointData> extpolys = SubdivList[sd].ExtPointList;
-            if (extpolys.Count > 0) {
-               DataBlock block = new DataBlock((uint)bw.Position, 0);
-               foreach (ExtRawPointData pt in extpolys)
-                  pt.Write(bw);
-               block.Length = (uint)bw.Position - block.Offset;
-               block.Offset -= startadr;
-               TREFile.ExtPointBlock4Subdiv.Add(sd, block);
-            }
-         }
-      }
-
-      /// <summary>
-      /// schreibt die Headerdaten und verwendet die akt. Dateiabschnitte dafür
-      /// </summary>
-      /// <param name="bw"></param>
-      protected override void Encode_Header(BinaryReaderWriter bw) {
-         if (bw != null) {
-            base.Encode_Header(bw);
-
-            SubdivContentBlock.Write(bw);
-            if (Headerlength > 0x1D) {
-               ExtAreasBlock.Write(bw);
-               bw.Write(Unknown_0x25);
-               ExtLinesBlock.Write(bw);
-               bw.Write(Unknown_0x41);
-               ExtPointsBlock.Write(bw);
-               bw.Write(Unknown_0x5D);
-               UnknownBlock_0x71.Write(bw);
-               bw.Write(Unknown_0x79);
-            }
-         }
-      }
-
-      #endregion
-
-      /*
-      void Test() {
-         byte[] data ={
-
-              0x10, 0xc4, 0xe7, 0xff, 0x0d, 0x00, 0xf1, 0x19, 0x01, 0x1c, 0x01, 0x97, 0x01, 0x54
-   , 0x6f, 0x0d, 0x40, 0x64, 0xe0, 0x00, 0x03, 0x73, 0x5a, 0x6b, 0xe0, 0x40, 0x12, 0x75, 0xe0, 0x40
-   , 0x03, 0x7e, 0xe0, 0x40, 0x06, 0x8d, 0xe0, 0x40, 0x02, 0x9a, 0xe0, 0x40, 0x0f, 0xa3, 0xe0, 0x40
-   , 0x11, 0xad, 0xe0, 0x40, 0x07, 0x9a, 0xe0, 0x40, 0x0e, 0xbf, 0xe0, 0x40, 0x04, 0xc7, 0xe0, 0x40
-   , 0x01, 0xd2, 0xe0,
-
-   0x40, 0x05, 0xde, 0xe0, 0x40, 0x10, 0xe9, 0xe0,
-   0x40, 0x08, 0xbb, 0xe0, 0x80, 0x9a
-                     };
-
-
-
-         for (int i = data.Length - 6; i >= 0; i--) {
-            byte[] buff = new byte[data.Length - i];
-            for (int j = i; j < data.Length; j++)
-               buff[j - i] = data[j];
-            Debug.WriteLine("------------- Länge=" + (data.Length - i).ToString() + ": " + Helper.DumpMemory(buff));
-
-            BinaryReaderWriter br = new BinaryReaderWriter(buff, 0, buff.Length);
-            Debug.WriteLine(br);
-            try {
-               while (br.Position < br.Length) {
-                  ExtPointData p = new ExtPointData(br);
-                  Debug.WriteLine("!!! i=" + i.ToString() + " " + p.ToString());
-                  //Debug.WriteLine("  " + br.ToString());
-               }
-            } catch (Exception ex) {
-               Debug.WriteLine("  ######### Exception: " + ex.Message);
-               continue;
-            }
-         }
-
-      }
-      */
    }
 
 }

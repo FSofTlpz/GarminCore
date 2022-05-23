@@ -92,7 +92,7 @@ namespace GarminCore.Files {
                throw new Exception("Unbekannter Block-Typ: 0x" + b.ToString("X"));
             }
 
-            Length = br.ReadUInt16();
+            Length = br.Read2AsUShort();
          }
 
          public void Write(BinaryReaderWriter wr) {
@@ -273,11 +273,11 @@ namespace GarminCore.Files {
          /// </summary>
          /// <param name="br"></param>
          public void ReadData(BinaryReaderWriter br) {
-            ProductID = br.ReadUInt16();
-            FamilyID = br.ReadUInt16();
-            TDBVersion = br.ReadUInt16();
+            ProductID = br.Read2AsUShort();
+            FamilyID = br.Read2AsUShort();
+            TDBVersion = br.Read2AsUShort();
             MapSeriesName = br.ReadString();
-            ProductVersion = br.ReadUInt16();
+            ProductVersion = br.Read2AsUShort();
             MapFamilyName = br.ReadString();
 
             if (TDBVersion >= 407) {
@@ -311,8 +311,8 @@ namespace GarminCore.Files {
                Unknown26 = br.ReadByte();
                Unknown27 = br.ReadByte();
                Unknown28 = br.ReadByte();
-               CodePage = br.ReadUInt32();
-               Unknown29 = br.ReadUInt32();
+               CodePage = br.Read4UInt();
+               Unknown29 = br.Read4UInt();
                Routable = br.ReadByte();
                HasProfileInformation = br.ReadByte();
                HasDEM = br.ReadByte();
@@ -540,7 +540,7 @@ namespace GarminCore.Files {
                   WhereCode = (WhereCodes)b;
                } catch { }
 
-               ExtraProperties = br.ReadUInt16();
+               ExtraProperties = br.Read2AsUShort();
 
                Copyright = br.ReadString();
             }
@@ -710,12 +710,12 @@ namespace GarminCore.Files {
          /// </summary>
          /// <param name="br"></param>
          public void ReadData(BinaryReaderWriter br) {
-            Mapnumber = br.ReadUInt32();
-            ParentMapnumber = br.ReadUInt32();
-            north = br.ReadInt32();
-            east = br.ReadInt32();
-            south = br.ReadInt32();
-            west = br.ReadInt32();
+            Mapnumber = br.Read4UInt();
+            ParentMapnumber = br.Read4UInt();
+            north = br.Read4Int();
+            east = br.Read4Int();
+            south = br.Read4Int();
+            west = br.Read4Int();
             Description = br.ReadString();
          }
 
@@ -812,14 +812,14 @@ namespace GarminCore.Files {
 
             int readlen = 6 * 4 + Description.Length + 1;   // in der Basisklasse gelesen
 
-            Unknown1 = br.ReadUInt16();
-            SubCount = br.ReadUInt16();
+            Unknown1 = br.Read2AsUShort();
+            SubCount = br.Read2AsUShort();
 
             readlen += 4;
 
             DataSize.Clear();
             for (int i = 0; i < SubCount; i++) {
-               DataSize.Add(br.ReadUInt32());
+               DataSize.Add(br.Read4UInt());
                readlen += 4;
             }
 
@@ -989,16 +989,16 @@ namespace GarminCore.Files {
          /// </summary>
          /// <param name="br"></param>
          public void ReadData(BinaryReaderWriter br) {
-            Unknown1 = br.ReadUInt16();
+            Unknown1 = br.Read2AsUShort();
             A = br.ReadByte();
-            Unknown2 = br.ReadUInt32();
-            Unknown3 = br.ReadUInt16();
+            Unknown2 = br.Read4UInt();
+            Unknown3 = br.Read2AsUShort();
             B = br.ReadByte();
-            Unknown4 = br.ReadUInt16();
+            Unknown4 = br.Read2AsUShort();
             C = br.ReadByte();
-            Unknown5 = br.ReadUInt32();
+            Unknown5 = br.Read4UInt();
             D = br.ReadByte();
-            Unknown6 = br.ReadUInt16();
+            Unknown6 = br.Read2AsUShort();
          }
 
          /// <summary>

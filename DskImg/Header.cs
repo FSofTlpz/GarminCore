@@ -330,17 +330,17 @@ namespace GarminCore.DskImg {
          br.ReadBytes(Unknown_x16);       // (Size of each FAT, in sectors, for FAT12/16; 0 for FAT32 )
 
          // 0x18
-         SectorsPerTrack = br.ReadUInt16();
+         SectorsPerTrack = br.Read2AsUShort();
          // 0x1a
-         HeadsPerCylinder = br.ReadUInt16();
+         HeadsPerCylinder = br.Read2AsUShort();
          // 0x1c
-         Cylinders = br.ReadUInt16();
+         Cylinders = br.Read2AsUShort();
 
          // 0x1e
          br.ReadBytes(Unknown_x1e);
 
          // 0x39
-         CreationDate = new DateTime(br.ReadUInt16(),
+         CreationDate = new DateTime(br.Read2AsUShort(),
                                      br.ReadByte(),
                                      br.ReadByte(),
                                      br.ReadByte(),
@@ -362,9 +362,9 @@ namespace GarminCore.DskImg {
          Description1 = Encoding.ASCII.GetString(br.ReadBytes(20));
 
          // 0x5d
-         HeadsPerCylinder2 = br.ReadUInt16();
+         HeadsPerCylinder2 = br.Read2AsUShort();
          // 0x5f
-         SectorsPerTrack2 = br.ReadUInt16();
+         SectorsPerTrack2 = br.Read2AsUShort();
 
          // 0x61
          /* Most notable are the two byte values (at 0x61 and 0x62, here named as E1 and E2) which are
@@ -375,7 +375,7 @@ namespace GarminCore.DskImg {
          BlocksizeExp2 = br.ReadByte();
 
          // 0x63
-         Blocks4Img = br.ReadUInt16();
+         Blocks4Img = br.Read2AsUShort();
 
          // 0x65
          Description2 = Encoding.ASCII.GetString(br.ReadBytes(30));
@@ -403,15 +403,15 @@ namespace GarminCore.DskImg {
          LastCylinderNumber4Partition = br.ReadByte();
 
          // 0x1c6
-         RelativeSectors = br.ReadUInt32();
+         RelativeSectors = br.Read4UInt();
          // 0x1ca
-         LastSectorNumber4IMG = br.ReadUInt32();
+         LastSectorNumber4IMG = br.Read4UInt();
 
          // 0x1ce
          br.ReadBytes(Unknown_x1ce);
 
          // 0x1fe
-         if (br.ReadUInt16() != BOOTSIGNATURE)
+         if (br.Read2AsUShort() != BOOTSIGNATURE)
             throw new Exception("Das ist keine Garmin-IMG-Datei.");
 
          // 0x200
@@ -509,9 +509,8 @@ namespace GarminCore.DskImg {
          StartHeadNumber4Partition = 0;
          StartSectorNumber4Partition = 1;
 
-         int C, H, S;
          // LBA-Adresse des letzten Sektors (lineare Zählung der LBA-Sektoren ab 0, 1, ...)
-         Lba2CHS(LastSectorNumber4IMG - 1, SectorsPerTrack, HeadsPerCylinder, out C, out H, out S);
+         Lba2CHS(LastSectorNumber4IMG - 1, SectorsPerTrack, HeadsPerCylinder, out int C, out int H, out int S);
          LastCylinderNumber4Partition = (byte)(C & 0xFF);
          LastHeadNumber4Partition = (byte)H;
          LastSectorNumber4Partition = (byte)(((C & 0x300) >> 2) | (S & 0x3F)); // Bit 8,9 von C -> 6,7 und Bit 0..5 von S

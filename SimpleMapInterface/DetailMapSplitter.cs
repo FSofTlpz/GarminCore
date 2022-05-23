@@ -353,8 +353,7 @@ namespace GarminCore.SimpleMapInterface {
       static ClipperPaths SplitClipperPath(ClipperPath poly, int maxsize) {
          ClipperPaths result = new ClipperPaths();
 
-         int left, bottom, width, height;
-         GetBounding4ClipperPath(poly, out left, out bottom, out width, out height);
+         GetBounding4ClipperPath(poly, out int left, out int bottom, out int width, out int height);
 
          /* Wenn Gebiet zu groß:
           * Halbierung der Boundingbox an ihrer größeren Seite
@@ -650,22 +649,25 @@ namespace GarminCore.SimpleMapInterface {
             else {
 
                // Speicherplatzgrößen bestimmen
-               StdFile_TRE.SubdivInfoBasic sdib = new StdFile_TRE.SubdivInfoBasic();
-               sdib.Center = new MapUnitPoint(map.DesiredBounds.Left + map.DesiredBounds.Width / 2, map.DesiredBounds.Bottom + map.DesiredBounds.Height / 2);
+               StdFile_TRE.SubdivInfoBasic sdib = new StdFile_TRE.SubdivInfoBasic {
+                  Center = new MapUnitPoint(map.DesiredBounds.Left + map.DesiredBounds.Width / 2, map.DesiredBounds.Bottom + map.DesiredBounds.Height / 2)
+               };
 
                uint point_datalength = 0;
                uint extpoint_datalength = 0;
                foreach (DetailMap.Point point in map.PointList) {
                   if (!point.IsExtendedType) {
-                     StdFile_RGN.RawPointData pd = new StdFile_RGN.RawPointData();
-                     pd.Type = point.MainType;
-                     pd.Subtype = point.SubType;
+                     StdFile_RGN.RawPointData pd = new StdFile_RGN.RawPointData {
+                        Type = point.MainType,
+                        Subtype = point.SubType
+                     };
                      point_datalength += pd.DataLength;
                   } else {
-                     StdFile_RGN.ExtRawPointData pd = new StdFile_RGN.ExtRawPointData();
-                     pd.Type = point.MainType;
-                     pd.Subtype = point.SubType;
-                     pd.LabelOffset = (uint)(string.IsNullOrEmpty(point.Label) ? 0 : 1);
+                     StdFile_RGN.ExtRawPointData pd = new StdFile_RGN.ExtRawPointData {
+                        Type = point.MainType,
+                        Subtype = point.SubType,
+                        LabelOffsetInLBL = (uint)(string.IsNullOrEmpty(point.Label) ? 0 : 1)
+                     };
                      // ev. noch pd.ExtraBytes setzen
                      extpoint_datalength += pd.DataLength;
                   }
@@ -678,11 +680,11 @@ namespace GarminCore.SimpleMapInterface {
                   if (poly.PointCount > 1)               // min. 2 Punkte
                      if (!poly.IsExtendedType) {
                         StdFile_RGN.RawPolyData polydat = poly.BuildRgnPolyData(sdib.Center, coordbits, false);
-                        polydat.LabelOffset = (uint)(string.IsNullOrEmpty(poly.Label) ? 0 : 1);
+                        polydat.LabelOffsetInLBL = (uint)(string.IsNullOrEmpty(poly.Label) ? 0 : 1);
                         line_datalength += polydat.DataLength;
                      } else {
                         StdFile_RGN.ExtRawPolyData polydat = poly.BuildRgnExtPolyData(sdib.Center, coordbits);
-                        polydat.LabelOffset = (uint)(string.IsNullOrEmpty(poly.Label) ? 0 : 1);
+                        polydat.LabelOffsetInLBL = (uint)(string.IsNullOrEmpty(poly.Label) ? 0 : 1);
                         extline_datalength += polydat.DataLength;
                      }
                }
@@ -694,11 +696,11 @@ namespace GarminCore.SimpleMapInterface {
                   if (poly.PointCount > 2)               // min. 3 Punkte
                      if (!poly.IsExtendedType) {
                         StdFile_RGN.RawPolyData polydat = poly.BuildRgnPolyData(sdib.Center, coordbits, false);
-                        polydat.LabelOffset = (uint)(string.IsNullOrEmpty(poly.Label) ? 0 : 1);
+                        polydat.LabelOffsetInLBL = (uint)(string.IsNullOrEmpty(poly.Label) ? 0 : 1);
                         area_datalength += polydat.DataLength;
                      } else {
                         StdFile_RGN.ExtRawPolyData polydat = poly.BuildRgnExtPolyData(sdib.Center, coordbits);
-                        polydat.LabelOffset = (uint)(string.IsNullOrEmpty(poly.Label) ? 0 : 1);
+                        polydat.LabelOffsetInLBL = (uint)(string.IsNullOrEmpty(poly.Label) ? 0 : 1);
                         extarea_datalength += polydat.DataLength;
                      }
                }

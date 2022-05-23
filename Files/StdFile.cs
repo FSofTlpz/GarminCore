@@ -43,7 +43,7 @@ namespace GarminCore.Files {
    /// wird durch eine Zeichenkette angegeben. Die Länge des typspezifischen Headers ergibt sich aus
    /// der Länge des Gesamt-Headers abzüglich der Länge des Standard-Headers.</para>
    /// </summary>
-   abstract public class StdFile {
+   abstract public class StdFile : IDisposable {
 
       // prinzipieller Dateiaufbau, mit dem gerechnet werden muss:
       //
@@ -182,7 +182,7 @@ namespace GarminCore.Files {
       protected void ReadCommonHeader(BinaryReaderWriter br, string expectedtyp = null) {
          br.Seek(HeaderOffset);
 
-         Headerlength = br.ReadUInt16();
+         Headerlength = br.Read2AsUShort();
 
          GarminTyp = br.ReadString(10);       // z.B. "GARMIN RGN"
          if (GarminTyp.Length != 10 ||
@@ -198,7 +198,7 @@ namespace GarminCore.Files {
          Locked = br.ReadByte();
 
          try {
-            CreationDate = new DateTime(br.ReadInt16(),
+            CreationDate = new DateTime(br.Read2AsShort(),
                                         br.ReadByte(), // "echter" Monat
                                         br.ReadByte(),
                                         br.ReadByte(),
@@ -362,8 +362,7 @@ namespace GarminCore.Files {
       /// <param name="postheadertype">der Typ des Postheaders (oder ein negativer Wert)</param>
       /// <returns>false, wenn keine Abschnitte ex.</returns>
       protected bool SetSpecialOffsetsFromSections(int postheadertype = -1) {
-         int[] sectiontype;
-         uint[] sortedoffsets = Filesections.GetSortedOffsets(out sectiontype, true);
+         uint[] sortedoffsets = Filesections.GetSortedOffsets(out int[] sectiontype, true);
          if (sortedoffsets.Length > 0) {
             DataOffset = GapOffset = sortedoffsets[0];
             if (postheadertype == sectiontype[0]) {
@@ -382,6 +381,42 @@ namespace GarminCore.Files {
             GarminTyp, Locked, CreationDate, Headerlength, GapOffset, DataOffset, RawRead);
       }
 
+      ~StdFile() {
+         Dispose(false);
+      }
+
+      #region Implementierung der IDisposable-Schnittstelle
+
+      /// <summary>
+      /// true, wenn schon ein Dispose() erfolgte
+      /// </summary>
+      private bool _isdisposed = false;
+
+      /// <summary>
+      /// kann expliziet für das Objekt aufgerufen werden um interne Ressourcen frei zu geben
+      /// </summary>
+      public void Dispose() {
+         Dispose(true);
+         GC.SuppressFinalize(this);
+      }
+
+      /// <summary>
+      /// überschreibt die Standard-Methode
+      /// <para></para>
+      /// </summary>
+      /// <param name="notfromfinalizer">falls, wenn intern vom Finalizer aufgerufen</param>
+      protected virtual void Dispose(bool notfromfinalizer) {
+         if (!_isdisposed) {            // bisher noch kein Dispose erfolgt
+            if (notfromfinalizer) {          // nur dann alle managed Ressourcen freigeben
+
+            }
+            // jetzt immer alle unmanaged Ressourcen freigeben (z.B. Win32)
+
+            _isdisposed = true;        // Kennung setzen, dass Dispose erfolgt ist
+         }
+      }
+
+      #endregion
    }
 
 }

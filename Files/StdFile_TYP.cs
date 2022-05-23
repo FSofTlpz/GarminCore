@@ -52,9 +52,11 @@ namespace GarminCore.Files {
          public TypDataBlockWithRecordsize() : base() { }
 
          public TypDataBlockWithRecordsize(DataBlockWithRecordsize block) {
-            Offset = block.Offset;
-            Length = block.Length;
-            Recordsize = block.Recordsize;
+            if (block != null) {
+               Offset = block.Offset;
+               Length = block.Length;
+               Recordsize = block.Recordsize;
+            }
          }
 
          public TypDataBlockWithRecordsize(BinaryReaderWriter br) {
@@ -66,9 +68,9 @@ namespace GarminCore.Files {
          /// </summary>
          /// <param name="br"></param>
          public new void Read(BinaryReaderWriter br) {
-            Offset = br.ReadUInt32();
-            Recordsize = br.ReadUInt16();
-            Length = br.ReadUInt32();
+            Offset = br.Read4UInt();
+            Recordsize = br.Read2AsUShort();
+            Length = br.Read4UInt();
          }
 
          /// <summary>
@@ -345,15 +347,15 @@ namespace GarminCore.Files {
 
          Headertyp htyp = Headertyp.Unknown;
 
-         Codepage = br.ReadUInt16();
+         Codepage = br.Read2AsUShort();
          // Infos zu den Datenblöcken für POI, Polyline und Polygon einlesen (Offset, Länge)
          // (eigentlich uninteressant, da auf die Daten über die entsprechenden Tabellen zugegriffen wird)
          PointDatablock.Read(br);
          PolylineDatablock.Read(br);
          PolygoneDatablock.Read(br);
 
-         FamilyID = br.ReadUInt16();
-         ProductID = br.ReadUInt16();
+         FamilyID = br.Read2AsUShort();
+         ProductID = br.Read2AsUShort();
 
          // Infos zu den Tabellen für POI, Polyline und Polygon einlesen (Offset, Länge, Länge der Tabelleneinträge)
          PointTableBlock = new TypDataBlockWithRecordsize(br);
@@ -375,15 +377,15 @@ namespace GarminCore.Files {
             if (Headerlength > 0x6e) {           // Extra POI Labels
                htyp = Headertyp.Type_9C;
 
-               nt_unknown_0x6E = br.ReadUInt32(); // 0
+               nt_unknown_0x6E = br.Read4UInt(); // 0
                NT_PointLabelblock.Read(br);       // Block-Offset und -Länge
-               nt_unknown_0x7A = br.ReadUInt32(); // 6    Datensatzlänge?
-               nt_unknown_0x7E = br.ReadUInt32(); // 0x1B
+               nt_unknown_0x7A = br.Read4UInt(); // 6    Datensatzlänge?
+               nt_unknown_0x7E = br.Read4UInt(); // 0x1B
                NT_LabelblockTable1.Read(br);
-               nt_unknown_0x8A = br.ReadUInt32(); // 6
-               nt_unknown_0x8E = br.ReadUInt32(); // 0x1B
+               nt_unknown_0x8A = br.Read4UInt(); // 6
+               nt_unknown_0x8E = br.Read4UInt(); // 0x1B
                NT_LabelblockTable2.Read(br);
-               nt_unknown_0x9A = br.ReadUInt16(); // 0x12
+               nt_unknown_0x9A = br.Read2AsUShort(); // 0x12
 
                if (Headerlength > 0x9C) { // Indexing a selection of POIs
                   htyp = Headertyp.Type_A4;
@@ -673,10 +675,11 @@ namespace GarminCore.Files {
          PolygoneTableBlock.Recordsize = 5;
          PolygoneDatablock.Offset = (uint)bw.Position;
          foreach (Polygone p in polygone.Keys) {
-            TableItem tableitem = new TableItem();
-            tableitem.Type = p.Type;
-            tableitem.Subtype = p.Subtype;
-            tableitem.Offset = (int)(bw.Position - PolygoneDatablock.Offset);
+            TableItem tableitem = new TableItem {
+               Type = p.Type,
+               Subtype = p.Subtype,
+               Offset = (int)(bw.Position - PolygoneDatablock.Offset)
+            };
             table.Add(tableitem);
             p.Write(bw, Codepage);
          }
@@ -697,10 +700,11 @@ namespace GarminCore.Files {
          PolylineDatablock.Offset = (uint)bw.Position;
          table.Clear();
          foreach (Polyline p in polyline.Keys) {
-            TableItem tableitem = new TableItem();
-            tableitem.Type = p.Type;
-            tableitem.Subtype = p.Subtype;
-            tableitem.Offset = (int)(bw.Position - PolylineDatablock.Offset);
+            TableItem tableitem = new TableItem {
+               Type = p.Type,
+               Subtype = p.Subtype,
+               Offset = (int)(bw.Position - PolylineDatablock.Offset)
+            };
             table.Add(tableitem);
             p.Write(bw, Codepage);
          }
@@ -722,10 +726,11 @@ namespace GarminCore.Files {
          PointDatablock.Offset = (uint)bw.Position;
          table.Clear();
          foreach (POI p in poi.Keys) {
-            TableItem tableitem = new TableItem();
-            tableitem.Type = p.Type;
-            tableitem.Subtype = p.Subtype;
-            tableitem.Offset = (int)(bw.Position - PointDatablock.Offset);
+            TableItem tableitem = new TableItem {
+               Type = p.Type,
+               Subtype = p.Subtype,
+               Offset = (int)(bw.Position - PointDatablock.Offset)
+            };
             table.Add(tableitem);
             p.Write(bw, Codepage);
          }
@@ -742,13 +747,11 @@ namespace GarminCore.Files {
          // je Draworder eine Liste der Typen; je Typ eine Liste der Subtypes
          SortedList<uint, SortedList<uint, SortedList<uint, uint>>> draworderlist = new SortedList<uint, SortedList<uint, SortedList<uint, uint>>>();
          foreach (Polygone p in polygone.Keys) {
-            SortedList<uint, SortedList<uint, uint>> typelist;
-            if (!draworderlist.TryGetValue(p.Draworder, out typelist)) {
+            if (!draworderlist.TryGetValue(p.Draworder, out SortedList<uint, SortedList<uint, uint>> typelist)) {
                typelist = new SortedList<uint, SortedList<uint, uint>>();
                draworderlist.Add(p.Draworder, typelist);
             }
-            SortedList<uint, uint> subtypelist;
-            if (!typelist.TryGetValue(p.Type, out subtypelist)) {
+            if (!typelist.TryGetValue(p.Type, out SortedList<uint, uint> subtypelist)) {
                subtypelist = new SortedList<uint, uint>();
                typelist.Add(p.Type, subtypelist);
             }
@@ -1017,8 +1020,8 @@ namespace GarminCore.Files {
          public UInt16 v2;
 
          public NTTableItem(BinaryReaderWriter br) {
-            v1 = br.ReadUInt16();
-            v2 = br.ReadUInt16();
+            v1 = br.Read2AsUShort();
+            v2 = br.Read2AsUShort();
          }
          public override string ToString() {
             return string.Format("NTTableItem=[v1 0x{0:x}, v2 0x{1:x}]", v1, v2);
@@ -1100,6 +1103,36 @@ namespace GarminCore.Files {
       }
 
       #endregion
+
+
+      bool _isdisposed = false;
+
+      protected override void Dispose(bool notfromfinalizer) {
+         if (!_isdisposed) {
+            if (notfromfinalizer) { // nur dann alle managed Ressourcen freigeben
+               if (PolygonTableItems != null)
+                  PolygonTableItems.Clear();
+               if (PolylineTableItems != null)
+                  PolylineTableItems.Clear();
+               if (PointTableItems != null)
+                  PointTableItems.Clear();
+               if (PolygonDraworderTableItems != null)
+                  PolygonDraworderTableItems.Clear();
+
+               if (polygone != null)
+                  polygone.Clear();
+               if (polyline != null)
+                  polyline.Clear();
+               if (poi != null)
+                  poi.Clear();
+            }
+
+            // jetzt immer alle unmanaged Ressourcen freigeben (z.B. Win32)
+
+            _isdisposed = true;
+            base.Dispose(notfromfinalizer);
+         }
+      }
 
    }
 

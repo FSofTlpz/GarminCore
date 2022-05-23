@@ -245,10 +245,13 @@ namespace GarminCore.Files.Typ {
             throw new Exception("Es sind max. 255 Farben im Bild möglich.");
          if (coltab.Length <= 255)
             bExtended = false;
+
          if (bWithAlpha && Colormode != BitmapColorMode.POI_ALPHA)
             throw new Exception(string.Format("Der gewählte Farbmodus {0} ist für halbtransparente Farben nicht verwendbar.", Colormode));
+
          if (Colormode == BitmapColorMode.POLY2 && (coltab.Length > 2 || bWithTransp))
             throw new Exception(string.Format("Beim Farbmodus {0} sind max. 2 Farben im Bild möglich. Davon darf keine transparent sein.", Colormode));
+
          if (Colormode == BitmapColorMode.POLY1TR && ((!bWithTransp && coltab.Length > 1) ||
                                                       (bWithTransp && coltab.Length > 2)))
             throw new Exception(string.Format("Beim Farbmodus {0} ist außer Transparenz nur 1 Farbe im Bild möglich.", Colormode));
@@ -260,9 +263,9 @@ namespace GarminCore.Files.Typ {
                   colColorTable = new Color[1] { coltab[0] };
                   break;
 
-               case BitmapColorMode.POI_TR:     // alles übernehmen ausser der transp. Farbe
-                  colColorTable = new Color[coltab.Length - 1];
-                  for (int i = 0; i < coltab.Length - 1; i++)     // die letzte Farbe ist immer transp.
+               case BitmapColorMode.POI_TR:
+                  colColorTable = new Color[coltab.Length];
+                  for (int i = 0; i < coltab.Length; i++)     // die letzte Farbe (nicht in der Tabelle enthalten) ist immer transp.
                      colColorTable[i] = coltab[i];
                   break;
 

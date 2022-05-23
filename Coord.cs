@@ -82,9 +82,13 @@ namespace GarminCore {
        *  17            0,00274658203125            305,74811553955078125
        *  16            0,0054931640625             611,4962310791015625
        *  15            0,010986328125             1222,992462158203125
+       *  14            0,02197265625              2445,98492431640625
+       *  13            0,0439453125               4891,9698486328125
+       *  12            0,087890625                9783,939697265625
+       *  11            0,17578125                19567,87939453125
+       *  10            0,3515625                 39135,7587890625
        *  
-       *  
-       *  
+       *  Bei 24 Bit können Punkte also nur in einem Raster von etwa 239 cm dargestellt werden.
        */
 
       #region static-Funktionen für Umrechnungen und Einschränkungen von Koordinaten
